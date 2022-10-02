@@ -18,6 +18,7 @@
 namespace slam
 {
 
+template <typename FloatT>
 class MapReader
 {
     static const std::string RESOLUTION_STRING;
@@ -26,14 +27,15 @@ class MapReader
 public:
     MapReader() = default;
 
-    OccupancyGrid read_map(const std::string &file_path);
+    OccupancyGrid<FloatT> read_map(const std::string &file_path);
 
 private:
-    float get_resolution(std::ifstream &file) const;
+    FloatT get_resolution(std::ifstream &file) const;
     std::tuple<size_t, size_t> get_map_size(std::ifstream &file) const;
-    void fill_probability_map(std::ifstream &file, OccupancyGrid::Map &map) const;
+
+    void fill_probability_map(std::ifstream &file, typename OccupancyGrid<FloatT>::Map &map) const;
 };
 
-}
+}  // namespace slam
 
 #endif  // __SRC_MAP_READER_H_

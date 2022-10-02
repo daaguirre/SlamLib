@@ -34,17 +34,19 @@ enum class CellState : size_t
 };
 
 // forward declaration
+template<typename FloatT>
 class MapReader;
 
+template<typename FloatT>
 class OccupancyGrid
 {
 public:
-    using Map = Eigen::MatrixXd;
+    using Map = Eigen::Matrix<FloatT, -1, -1, Eigen::RowMajor>;
 
-    OccupancyGrid(size_t width, size_t height, double resolution, const std::string &name);
+    OccupancyGrid(size_t width, size_t height, FloatT resolution, const std::string &name);
 
     nav_msgs::msg::OccupancyGrid to_ros_msg();
-    void update(double delta_x, double delta_y, double delta_yaw);
+    void update(FloatT delta_x, FloatT delta_y, FloatT delta_yaw);
 
     size_t height() const
     {
@@ -70,25 +72,27 @@ public:
     {
         return m_map;
     }
-    // void update(const std::vector<Point2d<double>> &laser_scan);
+    // void update(const std::vector<Point2d<FloatT>> &laser_scan);
 
-    friend class MapReader;
+    friend class MapReader<FloatT>;
 
 private:
+    using Vector = Eigen::Matrix<FloatT, -1, 1>;
+
     void update_cell_probability(const Point2d<int> &point, CellState state);
     void get_free_cells(const Point2d<int> &detection, std::vector<Point2d<int>> &free_cells);
     bool is_in_grid_bounds(size_t x, size_t y);
 
     size_t m_width;
     size_t m_height;
-    double m_resolution;
+    FloatT m_resolution;
     std::string m_name;
     size_t m_size;
     Map m_map;
     Point2d<size_t> m_grid_center;
-    const double m_p_free{0.4};
-    const double m_p_occ{0.6};
-    const double m_p_prior{0.5};
+    const FloatT m_p_free{0.4};
+    const FloatT m_p_occ{0.6};
+    const FloatT m_p_prior{0.5};
 };
 
 }  // namespace slam

@@ -2,12 +2,15 @@ set(lib_name SlamLib)
 
 set(${lib_name}_sources
     slam_lib/io/map_reader.h
+    slam_lib/io/map_reader.hpp
     slam_lib/io/map_reader.cpp
-    slam_lib/io/log_reader.h
-    slam_lib/io/log_reader.cpp
+    slam_lib/io/odometry_reader.h
+    slam_lib/io/odometry_reader.hpp
+    slam_lib/io/odometry_reader.cpp
     slam_lib/mapping/occupancy_grid.h
+    slam_lib/mapping/occupancy_grid.hpp
     slam_lib/mapping/occupancy_grid.cpp
-    slam_lib/odometry/robot_odometry.h
+    slam_lib/odometry/odometry_models.h
     slam_lib/particle_filter.h
     slam_lib/particle_filter.cpp
 )

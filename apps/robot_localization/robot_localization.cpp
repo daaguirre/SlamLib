@@ -20,8 +20,8 @@ void robot_localization(int argc, char **argv)
     RCLCPP_INFO_STREAM(node->get_logger(), "RVIZ should be ready.");
 
     std::string map_file_path = "/home/diego/dev/slam_lib/tests/resources/wean.dat";
-    slam::MapReader map_reader;
-    slam::OccupancyGrid occupancy_grid = map_reader.read_map(map_file_path);
+    slam::MapReader<float> map_reader;
+    slam::OccupancyGrid<float> occupancy_grid = map_reader.read_map(map_file_path);
     // RCLCPP_INFO_STREAM(node->get_logger(), "Map size is " << occupancy_grid.size());
 
     nav_msgs::msg::OccupancyGrid message = occupancy_grid.to_ros_msg();

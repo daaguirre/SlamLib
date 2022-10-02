@@ -16,6 +16,8 @@ SET(${app_name}_sources
     test_base.cpp
     slam_lib/io/map_reader_test.h
     slam_lib/io/map_reader_test.cpp
+    slam_lib/io/odometry_reader_test.h
+    slam_lib/io/odometry_reader_test.cpp
     slam_lib/particle_filter_test.h
     slam_lib/particle_filter_test.cpp
 )
