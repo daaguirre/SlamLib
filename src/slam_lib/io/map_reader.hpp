@@ -37,7 +37,7 @@ OccupancyGrid<FloatT> MapReader<FloatT>::read_map(const std::string &file_path)
 template <typename FloatT>
 FloatT MapReader<FloatT>::get_resolution(std::ifstream &file) const
 {
-    FloatT resolution = 0.0f;
+    FloatT resolution = 0.0;
     std::string line;
     while (std::getline(file, line))
     {
@@ -54,6 +54,7 @@ FloatT MapReader<FloatT>::get_resolution(std::ifstream &file) const
         }
     }
 
+    //resolution is in centimeters
     return resolution * 0.01;
 }
 

@@ -10,9 +10,9 @@ TEST_F(MapReaderTest, should_read_file)
     slam::OccupancyGrid<FloatT> wean_map = map_reader.read_map(wean_map_path);
     
     const std::string expected_name = "wean";
-    const FloatT expected_resolution = 10.0f;
+    const FloatT expected_resolution = 0.1f;
     ASSERT_EQ(expected_name, wean_map.name());
-    ASSERT_EQ(expected_resolution, expected_resolution);
+    ASSERT_FLOAT_EQ(expected_resolution, wean_map.resolution());
     // const slam::OccupancyGrid::Map& prob_map = wean_map.get_probability_grid();
     ASSERT_EQ(800, wean_map.width());
     ASSERT_EQ(800, wean_map.height());

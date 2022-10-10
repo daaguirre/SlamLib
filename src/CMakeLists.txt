@@ -11,7 +11,15 @@ set(${lib_name}_sources
     slam_lib/mapping/occupancy_grid.hpp
     slam_lib/mapping/occupancy_grid.cpp
     slam_lib/odometry/odometry_models.h
+    slam_lib/ros/rviz_manager.h
+    slam_lib/ros/rviz_manager.hpp
+    slam_lib/ros/rviz_manager.cpp
+    slam_lib/types.h
+    slam_lib/utils/math_helpers.h
+    slam_lib/utils/math_helpers.hpp
+    slam_lib/utils/math_helpers.cpp
     slam_lib/particle_filter.h
+    slam_lib/particle_filter.hpp
     slam_lib/particle_filter.cpp
 )
 
@@ -25,6 +33,7 @@ find_package(PCL 1.12.1 REQUIRED COMPONENTS visualization)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 add_definitions(${PCL_DEFINITIONS})
 add_library(${lib_name} ${${lib_name}_sources})
@@ -36,7 +45,7 @@ target_include_directories(${lib_name} PUBLIC
 ament_target_dependencies(${lib_name}
     rclcpp
     nav_msgs
-    # sensor_msgs
+    sensor_msgs
 )
 
 target_link_libraries(${lib_name} 

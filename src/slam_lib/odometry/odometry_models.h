@@ -16,7 +16,10 @@
 namespace slam
 {
 
-template<typename T>
+template<typename FloatT>
+using Vector = Eigen::Matrix<FloatT, -1, 1>;
+
+template <typename T>
 struct PositionOdometry
 {
     T x;
@@ -35,14 +38,14 @@ struct LidarOdometry : public PositionOdometry<T>
     T lx;
     T ly;
     T lyaw;
-    Eigen::Matrix<T, -1, 1> ranges;
+    Vector<T> ranges;
 };
 
 
 template<typename T>
 struct RobotOdometry : public std::vector<LidarOdometry<T>>
 {
-    Eigen::Matrix<T, -1, 1> scan_angles;
+    Vector<T> scan_angles;
 };
 
 }  // namespace slam

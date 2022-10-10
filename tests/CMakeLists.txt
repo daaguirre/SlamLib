@@ -18,6 +18,8 @@ SET(${app_name}_sources
     slam_lib/io/map_reader_test.cpp
     slam_lib/io/odometry_reader_test.h
     slam_lib/io/odometry_reader_test.cpp
+    slam_lib/mapping/occupancy_grid_test.h
+    slam_lib/mapping/occupancy_grid_test.cpp
     slam_lib/particle_filter_test.h
     slam_lib/particle_filter_test.cpp
 )

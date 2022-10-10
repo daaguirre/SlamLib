@@ -3,6 +3,8 @@
 
 namespace slam
 {
+
 template class OccupancyGrid<float>;
 template class OccupancyGrid<double>;
+
 }

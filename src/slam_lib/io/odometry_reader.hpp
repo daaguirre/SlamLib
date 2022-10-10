@@ -40,15 +40,20 @@ LidarOdometry<T> slam::OdometryReader<T>::decode_line(
     char reading_type;
     iss >> reading_type;
     iss >> odometry.x >> odometry.y >> odometry.yaw;
+    odometry.x *= 0.1;
+    odometry.y *= 0.1;
     if (reading_type == 'L')
     {
         iss >> odometry.lx >> odometry.ly >> odometry.lyaw;
+        odometry.lx *= 0.1;
+        odometry.ly *= 0.1;
+
         odometry.ranges.resize(num_scans, 1);
         T value;
         for (size_t i = 0; i < num_scans; ++i)
         {
             iss >> value;
-            odometry.ranges(i) = value;
+            odometry.ranges(i) = value * 0.1;
         }
     }
 
