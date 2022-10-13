@@ -27,7 +27,7 @@ class MapReader
 public:
     MapReader() = default;
 
-    OccupancyGrid<FloatT> read_map(const std::string &file_path);
+    typename OccupancyGrid<FloatT>::Ptr read_map(const std::string &file_path);
 
 private:
     FloatT get_resolution(std::ifstream &file) const;

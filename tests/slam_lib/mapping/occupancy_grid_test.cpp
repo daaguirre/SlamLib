@@ -16,7 +16,7 @@ TEST_F(OccupancyGridTest, test_frame_transformations)
 
     std::string wean_map_path = (RESOURCES_DIR / "test_map.dat").string();
     slam::MapReader<FloatT> map_reader;
-    slam::OccupancyGrid<FloatT> test_map = map_reader.read_map(wean_map_path);
+    slam::OccupancyGrid<FloatT>& test_map = *map_reader.read_map(wean_map_path);
 
     Pose pose(1.4, 0.8, 0);
     GridPose grid_pose = test_map.to_map_frame(pose);
@@ -47,7 +47,7 @@ TEST_F(OccupancyGridTest, test_ray_projection)
 
     std::string wean_map_path = (RESOURCES_DIR / "wean.dat").string();
     slam::MapReader<FloatT> map_reader;
-    slam::OccupancyGrid<FloatT> wean_map = map_reader.read_map(wean_map_path);
+    slam::OccupancyGrid<FloatT>& wean_map = *map_reader.read_map(wean_map_path);
 
     FloatT yaw = M_PI_2;
     FloatT range = 4.5;
@@ -75,7 +75,7 @@ TEST_F(OccupancyGridTest, test_ray_projection2)
 
     std::string wean_map_path = (RESOURCES_DIR / "wean.dat").string();
     slam::MapReader<FloatT> map_reader;
-    slam::OccupancyGrid<FloatT> wean_map = map_reader.read_map(wean_map_path);
+    slam::OccupancyGrid<FloatT>& wean_map = *map_reader.read_map(wean_map_path);
 
     FloatT yaw = M_PI_2;
     FloatT range = 0.42;
@@ -104,7 +104,7 @@ TEST_F(OccupancyGridTest, test_ray_tracing)
 
     std::string wean_map_path = (RESOURCES_DIR / "wean.dat").string();
     slam::MapReader<FloatT> map_reader;
-    slam::OccupancyGrid<FloatT> wean_map = map_reader.read_map(wean_map_path);
+    slam::OccupancyGrid<FloatT>& wean_map = *map_reader.read_map(wean_map_path);
 
     FloatT yaw = M_PI_2;
     GridPose pose1(400, 400, yaw);
@@ -120,6 +120,6 @@ TEST_F(OccupancyGridTest, test_ray_tracing)
     slam::RVizManager<FloatT> rviz(m_node_ptr);
     rviz.publish_map(wean_map);
     rviz.publish_pose(wean_map.to_world_frame(pose1));
-    rviz.publish_laser_scan({polar.rho, polar.rho}, polar.theta);
+    // rviz.publish_laser_scan({polar.rho, polar.rho}, polar.theta);
     rviz.wait_msgs();
 }

@@ -96,8 +96,8 @@ public:
         return m_resolution;
     }
 
-    GridPose to_map_frame(const Pose& pose2d);
-    Pose to_world_frame(const GridPose& pose);
+    GridPose to_map_frame(const Pose& pose2d) const;
+    Pose to_world_frame(const GridPose& pose) const;
 
     /**
      * @brief projects a beam from pose a range distance and obtains
@@ -108,7 +108,7 @@ public:
      * @return the point where the beam would stop.
      * If the ray is projected out of the map boundaries INVALID_POSITION is returned.
      */
-    Point project_ray(const GridPose& pose, const FloatT range);
+    Point project_ray(const GridPose& pose, const FloatT range) const;
 
     /**
      * @brief obtains the distance from the input pose to first obstacle found.
@@ -117,7 +117,16 @@ public:
      * @return FloatT the range value to the first obstacle. If not obstacle is found then
      * INVALID_RANGE is returned
      */
-    FloatT ray_tracing(const GridPose& pose);
+    FloatT ray_tracing(const GridPose& pose) const;
+
+    CellState check_cell_state(
+        const GridPose& point,
+        const FloatT occ_thr = 0.15,
+        const FloatT free_thr = 0.95) const;
+    CellState check_cell_state(
+        const Point& point,
+        const FloatT occ_thr = 0.15,
+        const FloatT free_thr = 0.95) const;
 
     friend class MapReader<FloatT>;
 
@@ -127,7 +136,6 @@ private:
     void update_cell_probability(const Point& point, CellState state);
     void get_free_cells(const Point& detection, std::vector<Point>& free_cells);
     bool is_in_grid_bounds(const Point& point);
-    CellState check_cell_state(const Point& point);
 
     FloatT m_resolution;
     std::string m_name;

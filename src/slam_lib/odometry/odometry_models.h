@@ -45,7 +45,7 @@ struct LidarOdometry : public PositionOdometry<T>
 template<typename T>
 struct RobotOdometry : public std::vector<LidarOdometry<T>>
 {
-    Vector<T> scan_angles;
+    std::vector<T> scan_angles;
 };
 
 }  // namespace slam

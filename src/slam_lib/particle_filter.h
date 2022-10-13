@@ -11,6 +11,8 @@
 #ifndef __SLAM_LIB_PARTICLE_FILTER_H_
 #define __SLAM_LIB_PARTICLE_FILTER_H_
 
+#include <random>
+
 #include "mapping/occupancy_grid.h"
 #include "odometry/odometry_models.h"
 
@@ -27,48 +29,50 @@ class ParticleFilter
     FloatT SIGMA_YAW_NOISE = 0.01;
 
 public:
-    struct Pose
+    using GridPose = typename OccupancyGrid<FloatT>::GridPose;
+    using Point = typename OccupancyGrid<FloatT>::Point;
+    using Pose = typename OccupancyGrid<FloatT>::Pose;
+
+    struct Particle : public GridPose
     {
-        int x;
-        int y;
-        FloatT yaw;
+        FloatT weight;
     };
 
     ParticleFilter(const size_t num_particles, typename OccupancyGrid<FloatT>::ConstPtr occ_grid);
 
-    Pose update(
-        const LidarOdometry<FloatT>& current_odometry,
+    Particle update(
         const LidarOdometry<FloatT>& previous_odometry,
-        const Vector<FloatT>& scan_angles);
+        const LidarOdometry<FloatT>& current_odometry,
+        const std::vector<FloatT>& scan_angles);
 
-    const std::vector<Pose>& get_particles() const
+    const std::vector<Particle>& get_particles() const
     {
-        return m_states;
+        return m_particles;
     }
 
 private:
     void init_particles();
-    Pose sample_motion_model(
-        const Pose& previous_state,
+    GridPose sample_motion_model(
+        const GridPose& previous_map_pose,
         const LidarOdometry<FloatT>& previous_odometry,
         const LidarOdometry<FloatT>& current_odometry);
 
     FloatT sample_measurement_model(
-        const Pose& pose,
+        const Particle& pose,
         const LidarOdometry<FloatT>& current_odometry,
-        const Vector<FloatT>& scan_angles);
+        const std::vector<FloatT>& scan_angles);
 
-    std::tuple<int, int> calculate_pos_from_range(const Pose& pose, const FloatT range, const FloatT theta);
-    FloatT ray_tracing(const Pose& pose, const FloatT theta);
+    FloatT sample_hit_model(const Particle& particle, const FloatT range);
+    std::vector<Particle> low_variance_sampler(const std::vector<Particle>& particle_set);
 
     const size_t m_num_particles;
     typename OccupancyGrid<FloatT>::ConstPtr m_occ_grid;
-    Vector<FloatT> m_weights;
-    std::vector<Pose> m_states;
+    std::vector<Particle> m_particles;
 
-    std::default_random_engine m_generator;
+    std::mt19937 m_generator;
 
     // algorithm paramters
+    FloatT m_num_particles_inv;
     FloatT m_alpha1{0.025};
     FloatT m_alpha2{0.025};
     FloatT m_alpha3{0.4};
@@ -81,6 +85,7 @@ private:
     FloatT m_z_max{0.0};
     FloatT m_lidar_offset{0.25};
     FloatT m_obstacle_th{0.6};
+    FloatT m_max_range{114};
 };
 
 }  // namespace slam

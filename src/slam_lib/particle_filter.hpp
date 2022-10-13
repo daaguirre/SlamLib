@@ -3,6 +3,7 @@
 
 #include "odometry/odometry_models.h"
 #include "particle_filter.h"
+#include "slam_lib/utils/math_helpers.h"
 
 namespace slam
 {
@@ -11,7 +12,7 @@ template <typename FloatT>
 ParticleFilter<FloatT>::ParticleFilter(
     const size_t num_particles,
     typename OccupancyGrid<FloatT>::ConstPtr occ_grid)
-    : m_num_particles(num_particles), m_occ_grid(occ_grid)
+    : m_num_particles(num_particles), m_occ_grid(occ_grid), m_generator(std::random_device()())
 {
     init_particles();
 }
@@ -21,48 +22,99 @@ void ParticleFilter<FloatT>::init_particles()
 {
     std::random_device rd;
     std::mt19937 gen(rd());
-    FloatT initial_weight = 1.0 / static_cast<FloatT>(m_num_particles);
-    m_weights = Vector<FloatT>::Constant(m_num_particles, initial_weight);
-    m_states.resize(m_num_particles);
-    size_t count = m_num_particles - 1;
-    while (count)
+    m_num_particles_inv = 1.0 / static_cast<FloatT>(m_num_particles);
+    m_particles.resize(m_num_particles);
+
+    size_t count = 0;
+    while (count < m_num_particles)
     {
-        Pose state;
+        Particle& particle = m_particles[count];
         std::uniform_real_distribution<FloatT> dis(0, 1);  // uniform distribution between 0 and 1
-        state.x = int(dis(gen) * m_occ_grid->width());
-        state.y = int(dis(gen) * m_occ_grid->height());
-        FloatT occ_prob = m_occ_grid->map()(state.y, state.x);
+        particle.x = int(dis(gen) * m_occ_grid->width());
+        particle.y = int(dis(gen) * m_occ_grid->height());
+        CellState cell_state = m_occ_grid->check_cell_state(particle, 0.1, 0.95);
         // make sure particles are initialized in free cells
-        if (occ_prob < 0.5 && occ_prob >= 0)
+        if (cell_state != CellState::FREE)
         {
             continue;
         }
 
-        state.yaw = dis(gen) * 2 * pi;
         // yaw in [-pi, pi] range
-        state.yaw = state.yaw > pi ? state.yaw - 2 * pi : state.yaw;
-        m_states[count--] = state;
+        particle.yaw = wrap_to_pi_range(dis(gen) * 2 * pi);
+        particle.weight = m_num_particles_inv;
+        ++count;
     }
 }
 
 template <typename FloatT>
-typename ParticleFilter<FloatT>::Pose ParticleFilter<FloatT>::update(
+typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     const LidarOdometry<FloatT>& previous_odometry,
     const LidarOdometry<FloatT>& current_odometry,
-    const Vector<FloatT>& scan_angles)
+    const std::vector<FloatT>& scan_angles)
 {
+    FloatT total_weight = 0;
+    std::vector<Particle> particles_tmp;
+    particles_tmp.reserve(m_num_particles);
     for (size_t i = 0; i < m_num_particles; i++)
     {
         // calculate new state
-        Pose current_state = sample_motion_model(m_states[i], previous_odometry, current_odometry);
+        Particle current_particle;
+        *dynamic_cast<GridPose*>(&current_particle) =
+            sample_motion_model(m_particles[i], previous_odometry, current_odometry);
+        CellState cell_state = m_occ_grid->check_cell_state(current_particle);
+        FloatT weight = m_particles[i].weight;
+        if(cell_state != CellState::FREE)
+        {
+            weight = 0;
+        }
+        // FloatT weight = cell_state == CellState::FREE ? m_particles[i].weight : 0;
+        if (current_odometry.ranges.size() > 0 && weight > 0)
+        {
+            weight = sample_measurement_model(current_particle, current_odometry, scan_angles);
+        }
+
+        current_particle.weight = weight;
+        particles_tmp.push_back(current_particle);
+        total_weight += weight;
     }
 
-    return Pose();
+    // normalize weights
+    std::for_each(
+        particles_tmp.begin(),
+        particles_tmp.end(),
+        [=](Particle& particle) { particle.weight /= total_weight; });
+
+    auto best_particle = std::max_element(
+        particles_tmp.begin(),
+        particles_tmp.end(),
+        [](const Particle& a, const Particle& b) { return a.weight < b.weight; });
+
+    Particle final_particle = *best_particle;
+
+    FloatT sum1 = 0, sum2 = 0;
+    for(const auto& p : particles_tmp)
+    {
+        sum1 += p.weight;
+        sum2 += p.weight * p.weight;
+    }
+
+    FloatT eff_particles = ((sum1*sum1) / sum2);
+    FloatT sampler_thr = m_num_particles * 0.8; 
+    if (eff_particles < sampler_thr)
+    {
+        m_particles = low_variance_sampler(particles_tmp);
+    }
+    else
+    {
+        m_particles = particles_tmp;
+    }
+    
+    return final_particle;
 }
 
 template <typename FloatT>
-typename ParticleFilter<FloatT>::Pose ParticleFilter<FloatT>::sample_motion_model(
-    const Pose& previous_state,
+typename ParticleFilter<FloatT>::GridPose ParticleFilter<FloatT>::sample_motion_model(
+    const GridPose& previous_map_pose,
     const LidarOdometry<FloatT>& previous_odometry,
     const LidarOdometry<FloatT>& current_odometry)
 {
@@ -71,85 +123,110 @@ typename ParticleFilter<FloatT>::Pose ParticleFilter<FloatT>::sample_motion_mode
     FloatT delta_yaw = current_odometry.yaw - previous_odometry.yaw;
     FloatT delta_t = sqrt(delta_x * delta_x + delta_y * delta_y);
     FloatT theta = atan2(delta_y, delta_x);
-    FloatT delta_rot1 = atan2(delta_y, delta_x) - previous_odometry.yaw;
+    FloatT delta_rot1 = theta - previous_odometry.yaw;
     FloatT delta_rot2 = current_odometry.yaw - theta;
 
     FloatT motion_noise_sigma = m_alpha3 * delta_t + m_alpha4 * (delta_rot1 + delta_rot2);
     std::normal_distribution<FloatT> translation_noise(0.0, motion_noise_sigma);
 
-    FloatT rot1_noise_sigma = m_alpha1 * delta_rot1 + m_alpha2 * delta_t;
+    FloatT rot1_noise_sigma = std::abs(m_alpha1 * delta_rot1 + m_alpha2 * delta_t);
     std::normal_distribution<FloatT> rot1_noise(0.0, rot1_noise_sigma);
 
-    FloatT rot2_noise_sigma = m_alpha1 * delta_rot2 + m_alpha2 * delta_t;
+    FloatT rot2_noise_sigma = std::abs(m_alpha1 * delta_rot2 + m_alpha2 * delta_t);
     std::normal_distribution<FloatT> rot2_noise(0.0, rot2_noise_sigma);
 
     FloatT delta_t_hat = delta_t - translation_noise(m_generator);
     FloatT delta_rot1_hat = delta_rot1 - rot1_noise(m_generator);
     FloatT delta_rot2_hat = delta_rot2 - rot2_noise(m_generator);
 
-    Pose new_state;
-    FloatT dx = (delta_t_hat * cos(previous_state.yaw + delta_rot1_hat)) / m_occ_grid->resolution();
-    FloatT dy = (delta_t_hat * sin(previous_state.yaw + delta_rot1_hat)) / m_occ_grid->resolution();
-    new_state.x = previous_state.x + dx;
-    new_state.y = previous_state.y + dy;
-    new_state.yaw = previous_state.yaw + delta_rot1_hat + delta_rot2_hat;
+    Pose previous_pose = m_occ_grid->to_world_frame(previous_map_pose);
+    Pose new_pose;
+    FloatT dx = (delta_t_hat * cos(previous_pose.yaw + delta_rot1_hat));
+    FloatT dy = (delta_t_hat * sin(previous_pose.yaw + delta_rot1_hat));
+    new_pose.x = previous_pose.x + dx;
+    new_pose.y = previous_pose.y + dy;
+    new_pose.yaw = previous_pose.yaw + delta_rot1_hat + delta_rot2_hat;
 
-    return new_state;
+    GridPose new_map_pose = m_occ_grid->to_map_frame(new_pose);
+    return new_map_pose;
 }
 
 template <typename FloatT>
 FloatT ParticleFilter<FloatT>::sample_measurement_model(
-    const Pose& robot_pose,
+    const Particle& robot_pose,
     const LidarOdometry<FloatT>& current_odometry,
-    const Vector<FloatT>& scan_angles)
+    const std::vector<FloatT>& scan_angles)
 {
-    Pose lidar_pose;
-    lidar_pose.x = static_cast<int>(round(robot_pose.x + m_lidar_offset * cos(robot_pose.yaw)));
-    lidar_pose.y = static_cast<int>(round(robot_pose.y + m_lidar_offset * sin(robot_pose.yaw)));
+    Particle lidar_pose;
+    *dynamic_cast<Point*>(&lidar_pose) = m_occ_grid->project_ray(robot_pose, m_lidar_offset);
     lidar_pose.yaw = robot_pose.yaw;
-    for (int i = 0; i < scan_angles.rows(); ++i)
+    if (m_occ_grid->check_cell_state(lidar_pose) != CellState::FREE)
     {
-        FloatT scan_angle = scan_angles(i);
-
+        return 0;
     }
 
-    return 0;
+    FloatT score = 0;
+    for (int i = 0; i < scan_angles.size(); ++i)
+    {
+        const FloatT range = current_odometry.ranges[i];
+        if (range > m_max_range)
+        {
+            // laser reading is not valid if exceeds max range
+            continue;
+        }
+
+        const FloatT scan_angle = scan_angles[i];
+        Particle scan_pose(lidar_pose);
+        scan_pose.yaw = wrap_to_pi_range(scan_pose.yaw - scan_angle);
+        // FloatT max_range = m_occ_grid->ray_tracing(scan_pose);
+        // max_range = std::isnan(max_range)? 0 : max_range*1.2;
+        // if(range > max_range)
+        // {
+        //     continue;
+        // }
+
+        Point laser_end = m_occ_grid->project_ray(scan_pose, range);
+        CellState cell_state = m_occ_grid->check_cell_state(laser_end, 0.15);
+        score += cell_state == CellState::OCCUPIED ? 5 : -2;
+    }
+
+    if(score < 0)
+    {
+        score = 0; 
+    }
+
+    return score;
 }
 
 template <typename FloatT>
-std::tuple<int, int> ParticleFilter<FloatT>::calculate_pos_from_range(
-    const Pose& pose,
-    const FloatT range,
-    const FloatT theta)
+FloatT ParticleFilter<FloatT>::sample_hit_model(const Particle& state, const FloatT range)
 {
-    int x = pose.x + round(range * cos(theta));
-    int y = pose.y + round(range * sin(theta));
-    return {x,y};
+    FloatT true_range = m_occ_grid->ray_tracing(state);
+    std::normal_distribution<FloatT> hit_distribution(true_range, m_sigma_hit);
+    FloatT hit_prob = 0;  // hit_distribution(range);
+    return hit_prob;
 }
 
 template <typename FloatT>
-FloatT ParticleFilter<FloatT>::ray_tracing(const Pose& pose, const FloatT theta)
+std::vector<typename ParticleFilter<FloatT>::Particle> ParticleFilter<FloatT>::low_variance_sampler(
+    const std::vector<typename ParticleFilter<FloatT>::Particle>& particle_set)
 {
-    FloatT step = 1.0;
-    FloatT range = -1;
-    int beam_x = pose.x;
-    int beam_y = pose.y;
-    while (beam_x < m_occ_grid->width() && beam_y < m_occ_grid->height())
+    std::vector<Particle> particles_tmp;
+    float r = (rand() / static_cast<FloatT>(RAND_MAX)) * m_num_particles_inv;
+    float c = particle_set[0].weight;
+    size_t i = 0;
+    for (size_t m = 0; m < m_num_particles; ++m)
     {
-        beam_x += int(round(step * cos(theta)));
-        beam_y += int(round(step * sin(theta)));
-        FloatT occ_prob = m_occ_grid->map()(beam_y, beam_x);
-        if(occ_prob < 0)
+        float u = r + static_cast<FloatT>(m) * m_num_particles_inv;
+        while (u > c)
         {
-            break;
+            i++;
+            c += particle_set[i].weight;
         }
-        if(occ_prob >= m_obstacle_th)
-        {
-            range = sqrt(pow(pose.x - beam_x, 2) + pow(pose.y - beam_y, 2)) * m_occ_grid->resolution();
-            break;
-        }
+        particles_tmp.push_back(particle_set[i]);
     }
-    return range;
+
+    return particles_tmp;
 }
 
 }  // namespace slam

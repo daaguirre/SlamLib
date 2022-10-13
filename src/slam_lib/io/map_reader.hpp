@@ -16,7 +16,7 @@ template <typename FloatT>
 const std::string MapReader<FloatT>::MAP_SIZE_STRING = "global_map[0]:";
 
 template <typename FloatT>
-OccupancyGrid<FloatT> MapReader<FloatT>::read_map(const std::string &file_path)
+typename OccupancyGrid<FloatT>::Ptr MapReader<FloatT>::read_map(const std::string &file_path)
 {
     std::ifstream file(file_path);
     if (file.fail())
@@ -28,10 +28,10 @@ OccupancyGrid<FloatT> MapReader<FloatT>::read_map(const std::string &file_path)
     std::string map_name = std::filesystem::path(file_path).replace_extension().filename();
     FloatT resolution = get_resolution(file);
     auto [size_x, size_y] = get_map_size(file);
-    OccupancyGrid occupancy_grid(size_x, size_y, resolution, map_name);
-    fill_probability_map(file, occupancy_grid.m_map);
+    auto occ_grid_ptr = std::make_shared<OccupancyGrid<FloatT>>(size_x, size_y, resolution, map_name);
+    fill_probability_map(file, occ_grid_ptr->m_map);
 
-    return occupancy_grid;
+    return occ_grid_ptr;
 }
 
 template <typename FloatT>
@@ -54,7 +54,7 @@ FloatT MapReader<FloatT>::get_resolution(std::ifstream &file) const
         }
     }
 
-    //resolution is in centimeters
+    // resolution is in centimeters
     return resolution * 0.01;
 }
 
@@ -83,7 +83,9 @@ std::tuple<size_t, size_t> MapReader<FloatT>::get_map_size(std::ifstream &file) 
 }
 
 template <typename FloatT>
-void MapReader<FloatT>::fill_probability_map(std::ifstream &file, typename OccupancyGrid<FloatT>::Map &map) const
+void MapReader<FloatT>::fill_probability_map(
+    std::ifstream &file,
+    typename OccupancyGrid<FloatT>::Map &map) const
 {
     size_t x_idx = 0, y_idx = 0;
     std::string line;

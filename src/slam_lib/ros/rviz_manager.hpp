@@ -1,9 +1,12 @@
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <thread>
 
 #include "rviz_manager.h"
+#include "tf2_ros/transform_broadcaster.h"
+#include "slam_lib/utils/math_helpers.h"
 
 namespace slam
 {
@@ -17,6 +20,7 @@ RVizManager<FloatT>::RVizManager(rclcpp::Node::SharedPtr node_ptr) : m_node_ptr(
     m_pose_publisher = m_node_ptr->create_publisher<PoseMsg>("/robot_pose", 1);
     m_pose_array_publisher = m_node_ptr->create_publisher<PoseArrayMsg>("/particle_cloud", 1);
     m_laser_scan_publisher = m_node_ptr->create_publisher<LaserScanMsg>("/laser_scan", 1);
+    m_transform_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>(*m_node_ptr);
 }
 
 template <typename FloatT>
@@ -104,18 +108,18 @@ template <typename FloatT>
 void RVizManager<FloatT>::publish_laser_scan(const std::vector<FloatT>& laser_scan, const FloatT yaw)
 {
     LaserScanMsg msg;
-    msg.range_max = 1000;
+    msg.range_max = 120;
     msg.range_min = 0;
-    msg.angle_min = yaw;
-    msg.angle_max = yaw + 0.5;
-    msg.angle_increment = 0.2;
+    msg.angle_min = wrap_to_pi_range(yaw-M_PI_2);
+    msg.angle_max = wrap_to_pi_range(yaw + M_PI_2);
+    msg.angle_increment =  M_PI / 180;
     // msg.angle_increme
     for (auto range : laser_scan)
     {
         msg.ranges.push_back(range);
     }
 
-    msg.header.frame_id = "map";
+    msg.header.frame_id = "particle_frame";
     m_laser_scan_publisher->publish(msg);
 }
 
@@ -135,6 +139,36 @@ void RVizManager<FloatT>::fill_pose_msg(const Pose& pose, geometry_msgs::msg::Po
     q_msg.z = orientation_q.getZ();
     q_msg.w = orientation_q.getW();
     pose_msg.orientation = q_msg;
+}
+
+template <typename FloatT>
+void RVizManager<FloatT>::publish_transform(const Pose& pose)
+{
+    TranformMsg t;
+
+    // Read message content and assign it to
+    // corresponding tf variables
+    // t.header.stamp = this->get_clock()->now();
+    t.header.frame_id = "map";
+    t.child_frame_id = "particle_frame";
+    // Turtle only exists in 2D, thus we get x and y translation
+    // coordinates from the message and set the z coordinate to 0
+    t.transform.translation.x = pose.x;
+    t.transform.translation.y = pose.y;
+    t.transform.translation.z = 0.0;
+
+    // For the same reason, turtle can only rotate around one axis
+    // and this why we set rotation in x and y to 0 and obtain
+    // rotation in z axis from the message
+    // tf2::Quaternion q;
+    // q.setRPY(0, 0, msg->theta);
+    // t.transform.rotation.x = 0;
+    // t.transform.rotation.y = 0;
+    // t.transform.rotation.z = 0;
+    // t.transform.rotation.w = 1;
+
+    // Send the transformation
+    m_transform_broadcaster->sendTransform(t);
 }
 
 }  // namespace slam

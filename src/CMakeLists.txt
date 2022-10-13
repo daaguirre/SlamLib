@@ -34,6 +34,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_definitions(${PCL_DEFINITIONS})
 add_library(${lib_name} ${${lib_name}_sources})
@@ -46,6 +48,8 @@ ament_target_dependencies(${lib_name}
     rclcpp
     nav_msgs
     sensor_msgs
+    tf2
+    tf2_ros
 )
 
 target_link_libraries(${lib_name} 

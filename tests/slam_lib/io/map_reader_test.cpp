@@ -7,7 +7,7 @@ TEST_F(MapReaderTest, should_read_file)
     using FloatT = float;
     std::string wean_map_path = (RESOURCES_DIR / "wean.dat").string();
     slam::MapReader<FloatT> map_reader;
-    slam::OccupancyGrid<FloatT> wean_map = map_reader.read_map(wean_map_path);
+    slam::OccupancyGrid<FloatT>& wean_map = *map_reader.read_map(wean_map_path);
     
     const std::string expected_name = "wean";
     const FloatT expected_resolution = 0.1f;
