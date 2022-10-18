@@ -238,4 +238,27 @@ bool OccupancyGrid<FloatT>::is_in_grid_bounds(const Point &point)
     return true;
 }
 
+template <typename FloatT>
+Box<int> OccupancyGrid<FloatT>::get_map_box() const
+{
+    Box<int> map_box;
+    for(int r = 0; r < m_map.rows(); ++r)
+    {
+        for(int c = 0; c < m_map.cols(); ++c)
+        {
+            FloatT value = m_map(r, c);
+            if(value < 0)
+            {
+                continue;
+            }
+            map_box.min_x = c < map_box.min_x ? c : map_box.min_x;
+            map_box.min_y = r < map_box.min_y ? r : map_box.min_y;
+            map_box.max_x = c > map_box.max_x ? c : map_box.max_x;
+            map_box.max_y = r > map_box.max_y ? r : map_box.max_y;
+        }
+    }
+
+    return map_box;
+}
+
 }  // namespace slam

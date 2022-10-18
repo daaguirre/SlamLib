@@ -55,6 +55,25 @@ struct Pose2D : PointXY<FloatT>
     FloatT yaw;
 };
 
+template<typename T>
+struct Box
+{
+    T min_x = std::numeric_limits<T>::max();
+    T min_y = std::numeric_limits<T>::max();
+    T max_x = std::numeric_limits<T>::min();
+    T max_y = std::numeric_limits<T>::min();
+
+    T width() const
+    {
+        return max_x - min_x;
+    }
+
+    T height() const
+    {
+        return max_y - min_y;
+    }
+};
+
 }  // namespace slam
 
 #endif  // __SLAM_LIB_TYPES_H_

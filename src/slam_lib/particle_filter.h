@@ -77,7 +77,7 @@ private:
     FloatT m_alpha2{0.025};
     FloatT m_alpha3{0.4};
     FloatT m_alpha4{0.4};
-    FloatT m_sigma_hit{2};
+    FloatT m_sigma_hit{0.4};
     FloatT m_lambda_short{1.5};
     FloatT m_z_hit{0.8};
     FloatT m_z_short{0.2};
