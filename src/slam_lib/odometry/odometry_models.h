@@ -127,7 +127,7 @@ public:
         for (size_t i = 0; i < num_scans; ++i)
         {
             FloatT angle = i * step + min_angle;
-            m_lidar_cfg.m_scan_angles[i] = angle;
+            m_lidar_cfg.m_scan_angles.push_back(angle);
         }
 
         m_lidar_cfg.m_step = step;

@@ -50,7 +50,7 @@ template <typename T, typename YawT>
 struct Pose2D : PointXY<T>
 {
     Pose2D() {}
-    Pose2D(const T x, const T y, const T yaw) : PointXY<T>(x, y), yaw(yaw) {}
+    Pose2D(const T x, const T y, const YawT yaw) : PointXY<T>(x, y), yaw(yaw) {}
 
     YawT yaw;
 };

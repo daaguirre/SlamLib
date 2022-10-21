@@ -41,7 +41,7 @@ void ParticleFilter<FloatT>::init_particles()
         }
 
         // yaw in [-pi, pi] range
-        particle.yaw = wrap_to_pi_range(dis(gen) * 2 * pi);
+        particle.yaw = wrap_to_pi_range(dis(gen) * 2 * M_PI);
         particle.weight = m_num_particles_inv;
         ++count;
     }
@@ -155,7 +155,8 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
     const RobotReading<FloatT>& current_reading)
 {
     Particle lidar_pose;
-    *dynamic_cast<IPoint*>(&lidar_pose) = m_occ_grid->project_ray(robot_pose, m_lidar_offset);
+    *dynamic_cast<IPoint*>(&lidar_pose) =
+        m_occ_grid->project_ray(robot_pose, current_reading.lidar_cfg_ptr->pos_offset());
     lidar_pose.yaw = robot_pose.yaw;
     if (m_occ_grid->check_cell_state(lidar_pose) != CellState::FREE)
     {
@@ -167,7 +168,7 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
     for (int i = 0; i < scan_angles.size(); ++i)
     {
         const FloatT range = current_reading.ranges[i];
-        if (range > m_max_range)
+        if (range > current_reading.lidar_cfg_ptr->max_range())
         {
             // laser reading is not valid if exceeds max range
             continue;
@@ -182,7 +183,7 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
 
         IPoint laser_end = m_occ_grid->project_ray(scan_pose, range);
         CellState cell_state = m_occ_grid->check_cell_state(laser_end);
-        score += cell_state == CellState::OCCUPIED ? 5 : 0;
+        score += cell_state == CellState::OCCUPIED ? m_num_particles_inv : 0;
     }
 
     if (score < 0)
