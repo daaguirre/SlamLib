@@ -12,8 +12,8 @@
 TEST_F(ParticleFilterTest, test_particle_filter_initialization)
 {
     using FloatT = float;
-    using GridPose = slam::OccupancyGrid<FloatT>::GridPose;
-    using Pose = slam::OccupancyGrid<FloatT>::Pose;
+    using IPose = slam::IPose<FloatT>;
+    using Pose = slam::Pose<FloatT>;
 
     std::string wean_map_path = (RESOURCES_DIR / "wean.dat").string();
     slam::MapReader<FloatT> map_reader;

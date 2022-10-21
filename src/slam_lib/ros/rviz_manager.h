@@ -21,6 +21,7 @@
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "slam_lib/mapping/occupancy_grid.h"
+#include "slam_lib/odometry/odometry_models.h"
 #include "tf2_ros/transform_broadcaster.h"
 
 namespace slam
@@ -30,9 +31,6 @@ template <typename FloatT>
 class RVizManager
 {
 public:
-    using Point = typename OccupancyGrid<FloatT>::Point;
-    using Pose = typename OccupancyGrid<FloatT>::Pose;
-
     using MapMsg = nav_msgs::msg::OccupancyGrid;
     using MapPublisher = rclcpp::Publisher<MapMsg>;
 
@@ -50,16 +48,18 @@ public:
 
     RVizManager(rclcpp::Node::SharedPtr node_ptr);
 
-    void publish_map(const OccupancyGrid<FloatT>& occ_grid);
-    void publish_pose(const Pose& pose);
-    void publish_pose_array(const std::vector<Pose>& pose_vector);
-    void publish_laser_scan(const std::vector<FloatT>& ranges, const FloatT yaw);
-    void publish_transform(const Pose& pose);
+    void publish_map(const OccupancyGrid<FloatT>& occ_grid) const;
+    void publish_pose(const Pose<FloatT>& pose) const ;
+    void publish_pose_array(const std::vector<Pose<FloatT>>& pose_vector) const;
+    void publish_laser_scan(
+        const std::vector<FloatT>& ranges,
+        const LidarConfig<FloatT>& lidar_cfg) const;
+    void publish_transform(const Pose<FloatT>& pose, const std::string& frame_name) const;
 
-    void wait_msgs();
+    void wait_msgs() const;
 
 private:
-    void fill_pose_msg(const Pose& pose, geometry_msgs::msg::Pose& pose_msg);
+    void fill_pose_msg(const Pose<FloatT>& pose, geometry_msgs::msg::Pose& pose_msg) const;
 
     rclcpp::Node::SharedPtr m_node_ptr = nullptr;
     MapPublisher::SharedPtr m_map_publisher = nullptr;

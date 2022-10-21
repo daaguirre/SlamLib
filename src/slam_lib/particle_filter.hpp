@@ -1,4 +1,5 @@
 
+#include <iostream>
 #include <random>
 
 #include "odometry/odometry_models.h"
@@ -32,7 +33,7 @@ void ParticleFilter<FloatT>::init_particles()
         std::uniform_real_distribution<FloatT> dis(0, 1);  // uniform distribution between 0 and 1
         particle.x = int(dis(gen) * m_occ_grid->width());
         particle.y = int(dis(gen) * m_occ_grid->height());
-        CellState cell_state = m_occ_grid->check_cell_state(particle, 0.1, 0.95);
+        CellState cell_state = m_occ_grid->check_cell_state(particle);
         // make sure particles are initialized in free cells
         if (cell_state != CellState::FREE)
         {
@@ -48,9 +49,8 @@ void ParticleFilter<FloatT>::init_particles()
 
 template <typename FloatT>
 typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
-    const LidarOdometry<FloatT>& previous_odometry,
-    const LidarOdometry<FloatT>& current_odometry,
-    const std::vector<FloatT>& scan_angles)
+    const RobotReading<FloatT>& previous_reading,
+    const RobotReading<FloatT>& current_reading)
 {
     FloatT total_weight = 0;
     std::vector<Particle> particles_tmp;
@@ -59,18 +59,17 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     {
         // calculate new state
         Particle current_particle;
-        *dynamic_cast<GridPose*>(&current_particle) =
-            sample_motion_model(m_particles[i], previous_odometry, current_odometry);
+        *dynamic_cast<IPose<FloatT>*>(&current_particle) =
+            sample_motion_model(m_particles[i], previous_reading, current_reading);
         CellState cell_state = m_occ_grid->check_cell_state(current_particle);
         FloatT weight = m_particles[i].weight;
-        if(cell_state != CellState::FREE)
+        if (cell_state != CellState::FREE)
         {
             weight = 0;
         }
-        // FloatT weight = cell_state == CellState::FREE ? m_particles[i].weight : 0;
-        if (current_odometry.ranges.size() > 0 && weight > 0)
+        if (current_reading.ranges.size() > 0 && weight > 0)
         {
-            weight = sample_measurement_model(current_particle, current_odometry, scan_angles);
+            weight = sample_measurement_model(current_particle, current_reading);
         }
 
         current_particle.weight = weight;
@@ -92,15 +91,14 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     Particle final_particle = *best_particle;
 
     FloatT sum1 = 0, sum2 = 0;
-    for(const auto& p : particles_tmp)
+    for (const auto& p : particles_tmp)
     {
         sum1 += p.weight;
         sum2 += p.weight * p.weight;
     }
 
-    FloatT eff_particles = ((sum1*sum1) / sum2);
-    FloatT sampler_thr = m_num_particles * 0.8; 
-    if (eff_particles < sampler_thr)
+    FloatT eff_particles = ((sum1 * sum1) / sum2) / m_num_particles;
+    if (eff_particles < m_resampling_thr)
     {
         m_particles = low_variance_sampler(particles_tmp);
     }
@@ -108,23 +106,23 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     {
         m_particles = particles_tmp;
     }
-    
+
     return final_particle;
 }
 
 template <typename FloatT>
-typename ParticleFilter<FloatT>::GridPose ParticleFilter<FloatT>::sample_motion_model(
-    const GridPose& previous_map_pose,
-    const LidarOdometry<FloatT>& previous_odometry,
-    const LidarOdometry<FloatT>& current_odometry)
+IPose<FloatT> ParticleFilter<FloatT>::sample_motion_model(
+    const IPose<FloatT>& previous_map_pose,
+    const RobotReading<FloatT>& previous_reading,
+    const RobotReading<FloatT>& current_reading)
 {
-    FloatT delta_x = current_odometry.x - previous_odometry.x;
-    FloatT delta_y = current_odometry.y - previous_odometry.y;
-    FloatT delta_yaw = current_odometry.yaw - previous_odometry.yaw;
+    FloatT delta_x = current_reading.x - previous_reading.x;
+    FloatT delta_y = current_reading.y - previous_reading.y;
+    FloatT delta_yaw = current_reading.yaw - previous_reading.yaw;
     FloatT delta_t = sqrt(delta_x * delta_x + delta_y * delta_y);
     FloatT theta = atan2(delta_y, delta_x);
-    FloatT delta_rot1 = theta - previous_odometry.yaw;
-    FloatT delta_rot2 = current_odometry.yaw - theta;
+    FloatT delta_rot1 = theta - previous_reading.yaw;
+    FloatT delta_rot2 = current_reading.yaw - theta;
 
     FloatT motion_noise_sigma = m_alpha3 * delta_t + m_alpha4 * (delta_rot1 + delta_rot2);
     std::normal_distribution<FloatT> translation_noise(0.0, motion_noise_sigma);
@@ -139,36 +137,36 @@ typename ParticleFilter<FloatT>::GridPose ParticleFilter<FloatT>::sample_motion_
     FloatT delta_rot1_hat = delta_rot1 - rot1_noise(m_generator);
     FloatT delta_rot2_hat = delta_rot2 - rot2_noise(m_generator);
 
-    Pose previous_pose = m_occ_grid->to_world_frame(previous_map_pose);
-    Pose new_pose;
+    Pose<FloatT> previous_pose = m_occ_grid->to_world_frame(previous_map_pose);
+    Pose<FloatT> new_pose;
     FloatT dx = (delta_t_hat * cos(previous_pose.yaw + delta_rot1_hat));
     FloatT dy = (delta_t_hat * sin(previous_pose.yaw + delta_rot1_hat));
     new_pose.x = previous_pose.x + dx;
     new_pose.y = previous_pose.y + dy;
     new_pose.yaw = previous_pose.yaw + delta_rot1_hat + delta_rot2_hat;
 
-    GridPose new_map_pose = m_occ_grid->to_map_frame(new_pose);
+    IPose<FloatT> new_map_pose = m_occ_grid->to_map_frame(new_pose);
     return new_map_pose;
 }
 
 template <typename FloatT>
 FloatT ParticleFilter<FloatT>::sample_measurement_model(
     const Particle& robot_pose,
-    const LidarOdometry<FloatT>& current_odometry,
-    const std::vector<FloatT>& scan_angles)
+    const RobotReading<FloatT>& current_reading)
 {
     Particle lidar_pose;
-    *dynamic_cast<Point*>(&lidar_pose) = m_occ_grid->project_ray(robot_pose, m_lidar_offset);
+    *dynamic_cast<IPoint*>(&lidar_pose) = m_occ_grid->project_ray(robot_pose, m_lidar_offset);
     lidar_pose.yaw = robot_pose.yaw;
     if (m_occ_grid->check_cell_state(lidar_pose) != CellState::FREE)
     {
         return 0;
     }
 
+    const auto& scan_angles = current_reading.lidar_cfg_ptr->scan_angles();
     FloatT score = 0;
     for (int i = 0; i < scan_angles.size(); ++i)
     {
-        const FloatT range = current_odometry.ranges[i];
+        const FloatT range = current_reading.ranges[i];
         if (range > m_max_range)
         {
             // laser reading is not valid if exceeds max range
@@ -178,32 +176,35 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
         const FloatT scan_angle = scan_angles[i];
         Particle scan_pose(lidar_pose);
         scan_pose.yaw = wrap_to_pi_range(scan_pose.yaw - scan_angle);
-        // FloatT max_range = m_occ_grid->ray_tracing(scan_pose);
-        // max_range = std::isnan(max_range)? 0 : max_range*1.2;
-        // if(range > max_range)
-        // {
-        //     continue;
-        // }
 
-        Point laser_end = m_occ_grid->project_ray(scan_pose, range);
-        CellState cell_state = m_occ_grid->check_cell_state(laser_end, 0.15);
-        score += cell_state == CellState::OCCUPIED ? 5 : -2;
+        // FloatT hit_prob = sample_hit_model(scan_pose, range);
+        // score = hit_prob > 0.9? 5 : -2;
+
+        IPoint laser_end = m_occ_grid->project_ray(scan_pose, range);
+        CellState cell_state = m_occ_grid->check_cell_state(laser_end);
+        score += cell_state == CellState::OCCUPIED ? 5 : 0;
     }
 
-    if(score < 0)
+    if (score < 0)
     {
-        score = 0; 
+        score = 0;
     }
 
     return score;
 }
 
 template <typename FloatT>
-FloatT ParticleFilter<FloatT>::sample_hit_model(const Particle& state, const FloatT range)
+FloatT ParticleFilter<FloatT>::sample_hit_model(const Particle& particle, const FloatT range)
 {
-    FloatT true_range = m_occ_grid->ray_tracing(state);
-    std::normal_distribution<FloatT> hit_distribution(true_range, m_sigma_hit);
-    FloatT hit_prob = 0;  // hit_distribution(range);
+    FloatT true_range = m_occ_grid->ray_tracing(particle, 0.15, 0.15);
+    if (std::isnan(true_range))
+    {
+        return 0;
+    }
+
+    FloatT hit_prob = normpdf(range, true_range, m_sigma_hit);
+    FloatT max_hit_prob = normpdf(true_range, true_range, m_sigma_hit);
+    hit_prob /= max_hit_prob;
     return hit_prob;
 }
 
@@ -212,6 +213,7 @@ std::vector<typename ParticleFilter<FloatT>::Particle> ParticleFilter<FloatT>::l
     const std::vector<typename ParticleFilter<FloatT>::Particle>& particle_set)
 {
     std::vector<Particle> particles_tmp;
+    particles_tmp.reserve(m_num_particles);
     float r = (rand() / static_cast<FloatT>(RAND_MAX)) * m_num_particles_inv;
     float c = particle_set[0].weight;
     size_t i = 0;

@@ -12,7 +12,7 @@ namespace slam
 {
 
 template <typename FloatT>
-const typename OccupancyGrid<FloatT>::Point OccupancyGrid<FloatT>::INVALID_POSITION = {-1, -1};
+const IPoint OccupancyGrid<FloatT>::INVALID_POSITION = {-1, -1};
 
 template <typename FloatT>
 const FloatT OccupancyGrid<FloatT>::INVALID_RANGE = std::numeric_limits<FloatT>::quiet_NaN();
@@ -35,10 +35,9 @@ OccupancyGrid<FloatT>::OccupancyGrid(
 }
 
 template <typename FloatT>
-typename OccupancyGrid<FloatT>::GridPose OccupancyGrid<FloatT>::to_map_frame(
-    const Pose &pose2d) const
+IPose<FloatT> OccupancyGrid<FloatT>::to_map_frame(const Pose<FloatT> &pose2d) const
 {
-    GridPose grid_pose;
+    IPose<FloatT> grid_pose;
     auto vector = (m_transform * pose2d.vector());
     vector(0) = std::round(vector(0));
     vector(1) = std::round(vector(1));
@@ -48,19 +47,16 @@ typename OccupancyGrid<FloatT>::GridPose OccupancyGrid<FloatT>::to_map_frame(
 }
 
 template <typename FloatT>
-typename OccupancyGrid<FloatT>::Pose OccupancyGrid<FloatT>::to_world_frame(
-    const GridPose &pose) const
+Pose<FloatT> OccupancyGrid<FloatT>::to_world_frame(const IPose<FloatT> &pose) const
 {
-    Pose world_pose;
+    Pose<FloatT> world_pose;
     world_pose.vector() = m_transform.inverse() * pose.vector().template cast<FloatT>();
     world_pose.yaw = -pose.yaw;
     return world_pose;
 }
 
 template <typename FloatT>
-typename OccupancyGrid<FloatT>::Point OccupancyGrid<FloatT>::project_ray(
-    const GridPose &pose,
-    const FloatT range) const
+IPoint OccupancyGrid<FloatT>::project_ray(const IPose<FloatT> &pose, const FloatT range) const
 {
     FloatT dx = range * std::cos(pose.yaw);
     FloatT dy = range * std::sin(pose.yaw);
@@ -71,24 +67,25 @@ typename OccupancyGrid<FloatT>::Point OccupancyGrid<FloatT>::project_ray(
 
 template <typename FloatT>
 CellState OccupancyGrid<FloatT>::check_cell_state(
-    const GridPose &pose,
+    const IPose<FloatT> &pose,
     const FloatT occ_thr,
     const FloatT free_thr) const
 {
-    const Point* point_ptr = dynamic_cast<const Point*>(&pose);
-    return check_cell_state(*point_ptr, occ_thr, free_thr);
+    const IPoint *point_ptr = dynamic_cast<const IPoint *>(&pose);
+    return check_cell_state(*point_ptr);
 }
 
 template <typename FloatT>
 CellState OccupancyGrid<FloatT>::check_cell_state(
-    const Point &point,
+    const IPoint &point,
     const FloatT occ_thr,
     const FloatT free_thr) const
+
 {
     if (point.x < width() && point.x >= 0 && point.y < height() && point.y >= 0)
     {
         FloatT occ_prob = m_map(point.y, point.x);
-        if (occ_prob <= occ_thr && occ_prob >= 0)
+        if (occ_prob < occ_thr && occ_prob >= 0)
         {
             return CellState::OCCUPIED;
         }
@@ -103,17 +100,20 @@ CellState OccupancyGrid<FloatT>::check_cell_state(
 }
 
 template <typename FloatT>
-FloatT OccupancyGrid<FloatT>::ray_tracing(const GridPose &pose) const
+FloatT OccupancyGrid<FloatT>::ray_tracing(
+    const IPose<FloatT> &pose,
+    const FloatT occ_thr,
+    const FloatT free_thr) const
 {
-    Point current_point(pose.x, pose.y);
-    CellState current_state = check_cell_state(current_point);
-    FloatT range = current_state == CellState::FREE? 0 : INVALID_RANGE;
+    IPoint current_point(pose.x, pose.y);
+    CellState current_state = check_cell_state(current_point, occ_thr, free_thr);
+    FloatT range = current_state == CellState::FREE ? 0 : INVALID_RANGE;
     int counter = 1;
     while (current_state == CellState::FREE)
     {
         range = m_resolution * counter++;
         current_point = project_ray(pose, range);
-        current_state = check_cell_state(current_point);
+        current_state = check_cell_state(current_point, occ_thr, free_thr);
         if (current_state >= CellState::UNKNOWN)
         {
             range = INVALID_RANGE;
@@ -179,7 +179,7 @@ void OccupancyGrid<FloatT>::update(FloatT delta_x, FloatT delta_y, FloatT delta_
 // }
 
 template <typename FloatT>
-void OccupancyGrid<FloatT>::update_cell_probability(const Point &point, CellState state)
+void OccupancyGrid<FloatT>::update_cell_probability(const IPoint &point, CellState state)
 {
     // Calculate new log odds and add to current log odds
     FloatT log_prob{0.0};
@@ -202,7 +202,7 @@ void OccupancyGrid<FloatT>::update_cell_probability(const Point &point, CellStat
 }
 
 template <typename FloatT>
-void OccupancyGrid<FloatT>::get_free_cells(const Point &detection, std::vector<Point> &free_cells)
+void OccupancyGrid<FloatT>::get_free_cells(const IPoint &detection, std::vector<IPoint> &free_cells)
 {
     int x_start = m_grid_center.x;
     int y_start = m_grid_center.y;
@@ -231,7 +231,7 @@ void OccupancyGrid<FloatT>::get_free_cells(const Point &detection, std::vector<P
 }
 
 template <typename FloatT>
-bool OccupancyGrid<FloatT>::is_in_grid_bounds(const Point &point)
+bool OccupancyGrid<FloatT>::is_in_grid_bounds(const IPoint &point)
 {
     if (point.x >= 0 && !(point.x < width())) return false;
     if (point.y >= 0 && !(point.y < height())) return false;
@@ -242,12 +242,12 @@ template <typename FloatT>
 Box<int> OccupancyGrid<FloatT>::get_map_box() const
 {
     Box<int> map_box;
-    for(int r = 0; r < m_map.rows(); ++r)
+    for (int r = 0; r < m_map.rows(); ++r)
     {
-        for(int c = 0; c < m_map.cols(); ++c)
+        for (int c = 0; c < m_map.cols(); ++c)
         {
             FloatT value = m_map(r, c);
-            if(value < 0)
+            if (value < 0)
             {
                 continue;
             }

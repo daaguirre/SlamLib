@@ -35,26 +35,17 @@ class MapReader;
 template <typename FloatT>
 class OccupancyGrid
 {
-    static constexpr FloatT OCC_THR = 0.4;
-
 public:
+    static constexpr FloatT DEFAULT_OCC_THR = 0.15;
+    static constexpr FloatT DEFAULT_FREE_THR = 0.95;
+
     using Map = Eigen::Matrix<FloatT, -1, -1, Eigen::ColMajor>;
     using Ptr = std::shared_ptr<OccupancyGrid<FloatT>>;
     using ConstPtr = std::shared_ptr<const OccupancyGrid<FloatT>>;
-    using Point = PointXY<int>;
-    using Pose = Pose2D<FloatT>;
     using Transform = Eigen::Transform<FloatT, 2, Eigen::Affine>;
 
-    static const Point INVALID_POSITION;
+    static const IPoint INVALID_POSITION;
     static const FloatT INVALID_RANGE;
-
-    struct GridPose : public Point
-    {
-        GridPose() {}
-        GridPose(const int x, const int y, const FloatT yaw) : Point(x, y), yaw(yaw) {}
-
-        FloatT yaw;
-    };
 
     OccupancyGrid(
         const int width,
@@ -96,8 +87,8 @@ public:
         return m_resolution;
     }
 
-    GridPose to_map_frame(const Pose& pose2d) const;
-    Pose to_world_frame(const GridPose& pose) const;
+    IPose<FloatT> to_map_frame(const Pose<FloatT>& pose2d) const;
+    Pose<FloatT> to_world_frame(const IPose<FloatT>& pose) const;
 
     /**
      * @brief projects a beam from pose a range distance and obtains
@@ -108,7 +99,7 @@ public:
      * @return the point where the beam would stop.
      * If the ray is projected out of the map boundaries INVALID_POSITION is returned.
      */
-    Point project_ray(const GridPose& pose, const FloatT range) const;
+    IPoint project_ray(const IPose<FloatT>& pose, const FloatT range) const;
 
     /**
      * @brief obtains the distance from the input pose to first obstacle found.
@@ -117,35 +108,40 @@ public:
      * @return FloatT the range value to the first obstacle. If not obstacle is found then
      * INVALID_RANGE is returned
      */
-    FloatT ray_tracing(const GridPose& pose) const;
+    FloatT ray_tracing(
+        const IPose<FloatT>& pose,
+        const FloatT occ_thr = DEFAULT_OCC_THR,
+        const FloatT free_thr = DEFAULT_FREE_THR) const;
 
     CellState check_cell_state(
-        const GridPose& point,
-        const FloatT occ_thr = 0.15,
-        const FloatT free_thr = 0.95) const;
+        const IPose<FloatT>& pose,
+        const FloatT occ_thr = DEFAULT_OCC_THR,
+        const FloatT free_thr = DEFAULT_FREE_THR) const;
+
     CellState check_cell_state(
-        const Point& point,
-        const FloatT occ_thr = 0.15,
-        const FloatT free_thr = 0.95) const;
+        const IPoint& point,
+        const FloatT occ_thr = DEFAULT_OCC_THR,
+        const FloatT free_thr = DEFAULT_FREE_THR) const;
+
+    Box<int> get_map_box() const;
 
     friend class MapReader<FloatT>;
 
 private:
     using Vector = Eigen::Matrix<FloatT, -1, 1>;
 
-    void update_cell_probability(const Point& point, CellState state);
-    void get_free_cells(const Point& detection, std::vector<Point>& free_cells);
-    bool is_in_grid_bounds(const Point& point);
+    void update_cell_probability(const IPoint& point, CellState state);
+    void get_free_cells(const IPoint& detection, std::vector<IPoint>& free_cells);
+    bool is_in_grid_bounds(const IPoint& point);
 
     FloatT m_resolution;
     std::string m_name;
     Map m_map;
-    Point m_grid_center;
+    IPoint m_grid_center;
     Transform m_transform;
     const FloatT m_p_free{0.6};
     const FloatT m_p_occ{0.4};
     const FloatT m_p_prior{0.5};
-    const FloatT m_rt_step{0.1};  // ray tracing step
 };
 
 }  // namespace slam

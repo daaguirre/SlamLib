@@ -33,7 +33,7 @@ struct PointXY
             T x;
             T y;
         };
-    }; 
+    };
 
     ConstVector vector() const
     {
@@ -46,16 +46,21 @@ struct PointXY
     }
 };
 
-template <typename FloatT>
-struct Pose2D : PointXY<FloatT>
+template <typename T, typename YawT>
+struct Pose2D : PointXY<T>
 {
-    Pose2D(){}
-    Pose2D(const FloatT x, const FloatT y, const FloatT yaw) : PointXY<FloatT>(x, y), yaw(yaw) {}
+    Pose2D() {}
+    Pose2D(const T x, const T y, const T yaw) : PointXY<T>(x, y), yaw(yaw) {}
 
-    FloatT yaw;
+    YawT yaw;
 };
 
-template<typename T>
+template <
+    typename FloatT = float,
+    typename = std::enable_if_t<std::is_floating_point<FloatT>::value, void>>
+using IPose = Pose2D<int, FloatT>;
+
+template <typename T>
 struct Box
 {
     T min_x = std::numeric_limits<T>::max();
@@ -73,6 +78,27 @@ struct Box
         return max_y - min_y;
     }
 };
+
+/**
+ * @brief integer point. To be used on grids
+ *
+ */
+using IPoint = PointXY<int>;
+
+/**
+ * @brief defines the slam::Point as a floating point type
+ * by default float
+ * @tparam FloatT
+ */
+template <
+    typename FloatT = float,
+    typename = std::enable_if_t<std::is_floating_point<FloatT>::value, void>>
+using Point = PointXY<FloatT>;
+
+template <
+    typename FloatT = float,
+    typename = std::enable_if_t<std::is_floating_point<FloatT>::value, void>>
+using Pose = Pose2D<FloatT, FloatT>;
 
 }  // namespace slam
 

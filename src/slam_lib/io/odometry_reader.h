@@ -11,23 +11,23 @@
 #ifndef __SLAM_LIB_IO_LOG_READER_H_
 #define __SLAM_LIB_IO_LOG_READER_H_
 
-
 #include "slam_lib/odometry/odometry_models.h"
-
 
 namespace slam
 {
 
-template<typename T>
+template <typename FloatT>
 class OdometryReader
 {
 public:
     OdometryReader() = default;
 
-    RobotOdometry<T> read_robot_odometry_file(const std::string& file_path, const size_t num_scans);
+    RobotOdometry<FloatT> read_robot_odometry_file(
+        const std::string& file_path,
+        typename LidarConfig<FloatT>::ConstPtr lidar_cfg_ptr);
 
 private:
-    LidarOdometry<T> decode_line(const std::string& line, const size_t num_scans);
+    RobotReading<FloatT> decode_line(const std::string& line, const size_t num_scans);
 };
 
 }  // namespace slam

@@ -16,6 +16,7 @@
 #include "slam_lib/io/odometry_reader.h"
 
 using namespace std::chrono_literals;  // ns, us, ms, s, h, etc.
+using FloatT = float;
 
 void robot_localization(int argc, char** argv)
 {
@@ -25,17 +26,22 @@ void robot_localization(int argc, char** argv)
     RCLCPP_INFO_STREAM(node->get_logger(), "Starting particle filter...");
 
     std::string map_file_path = "/home/diego/dev/slam_lib/tests/resources/wean.dat";
-    slam::MapReader<float> map_reader;
-    slam::OccupancyGrid<float>::Ptr map_ptr = map_reader.read_map(map_file_path);
+    slam::MapReader<FloatT> map_reader;
+    slam::OccupancyGrid<FloatT>::Ptr map_ptr = map_reader.read_map(map_file_path);
 
     const size_t num_particles = 3000;
-    slam::ParticleFilter<float> particle_filter(num_particles, map_ptr);
+    slam::ParticleFilter<FloatT> particle_filter(num_particles, map_ptr);
 
-    slam::OdometryReader<float> odom_reader;
-    slam::RobotOdometry<float> robot_odometry = odom_reader.read_robot_odometry_file(
-        "/home/diego/dev/slam_lib/tests/resources/robotdata1.log", 180);
+    auto lidar_cfg_ptr = slam::LidarConfigBuilder<FloatT>("lidar")
+                             .set_position_offset(0.25)
+                             .set_scan_range(180, -M_PI_2, M_PI_2)
+                             .build_as_shared();
 
-    slam::RVizManager<float> rviz(node);
+    slam::OdometryReader<FloatT> odom_reader;
+    slam::RobotOdometry<FloatT> robot_odometry = odom_reader.read_robot_odometry_file(
+        "/home/diego/dev/slam_lib/tests/resources/robotdata1.log", lidar_cfg_ptr);
+
+    slam::RVizManager<FloatT> rviz(node);
     rviz.publish_map(*map_ptr);
     rviz.wait_msgs();
 
@@ -47,26 +53,16 @@ void robot_localization(int argc, char** argv)
         {
             RCLCPP_INFO_STREAM(node->get_logger(), "odometry update: " << i);
 
-            const auto& previous_odom = robot_odometry[i - 1];
-            const auto& current_odom = robot_odometry[i];
-            auto robot_pose_g =
-                particle_filter.update(previous_odom, current_odom, robot_odometry.scan_angles);
+            const auto& previous_reading = robot_odometry[i - 1];
+            const auto& current_reading = robot_odometry[i];
+            auto robot_grid_pose = particle_filter.update(previous_reading, current_reading);
 
-            auto robot_pose_w = map_ptr->to_world_frame(robot_pose_g);
-            rviz.publish_pose(robot_pose_w);
-            // rviz.publish_transform(robot_pose_w);
-            // if (current_odom.ranges.size())
-            // {
-            //     std::vector<float> ranges(
-            //         current_odom.ranges.data(),
-            //         current_odom.ranges.data() + current_odom.ranges.size());
-            //     rviz.publish_laser_scan(ranges, robot_pose_w.yaw);
-            // }
+            auto robot_world_pose = map_ptr->to_world_frame(robot_grid_pose);
+            rviz.publish_pose(robot_world_pose);
         }
         const auto& particles = particle_filter.get_particles();
-        // const auto& scan_positions = particle_filter.scan_positions();
 
-        std::vector<slam::OccupancyGrid<float>::Pose> poses(particles.size());
+        std::vector<slam::Pose<FloatT>> poses(particles.size());
         std::transform(
             particles.begin(),
             particles.end(),

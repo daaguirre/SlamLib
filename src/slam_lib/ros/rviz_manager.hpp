@@ -5,8 +5,8 @@
 #include <thread>
 
 #include "rviz_manager.h"
-#include "tf2_ros/transform_broadcaster.h"
 #include "slam_lib/utils/math_helpers.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 namespace slam
 {
@@ -24,13 +24,13 @@ RVizManager<FloatT>::RVizManager(rclcpp::Node::SharedPtr node_ptr) : m_node_ptr(
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::wait_msgs()
+void RVizManager<FloatT>::wait_msgs() const
 {
     std::this_thread::sleep_for(0.2s);
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::publish_map(const OccupancyGrid<FloatT>& occ_grid)
+void RVizManager<FloatT>::publish_map(const OccupancyGrid<FloatT>& occ_grid) const
 {
     MapMsg occ_grid_msg;
     occ_grid_msg.info.width = occ_grid.width();
@@ -48,9 +48,9 @@ void RVizManager<FloatT>::publish_map(const OccupancyGrid<FloatT>& occ_grid)
 
     for (int row = occ_grid.height(); row > 0; --row)
     {
-        for(int col = 0; col < occ_grid.width(); ++col)
+        for (int col = 0; col < occ_grid.width(); ++col)
         {
-            FloatT occ_prob = map(row-1, col);
+            FloatT occ_prob = map(row - 1, col);
             if (occ_prob >= 0)
             {
                 occ_grid_msg.data.push_back(occ_prob * 100);
@@ -79,7 +79,7 @@ void RVizManager<FloatT>::publish_map(const OccupancyGrid<FloatT>& occ_grid)
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::publish_pose(const Pose& pose)
+void RVizManager<FloatT>::publish_pose(const Pose<FloatT>& pose) const
 {
     geometry_msgs::msg::PoseStamped pose_msg;
     fill_pose_msg(pose, pose_msg.pose);
@@ -90,7 +90,7 @@ void RVizManager<FloatT>::publish_pose(const Pose& pose)
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::publish_pose_array(const std::vector<Pose>& pose_vector)
+void RVizManager<FloatT>::publish_pose_array(const std::vector<Pose<FloatT>>& pose_vector) const
 {
     PoseArrayMsg msg;
     for (auto& pose : pose_vector)
@@ -105,26 +105,35 @@ void RVizManager<FloatT>::publish_pose_array(const std::vector<Pose>& pose_vecto
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::publish_laser_scan(const std::vector<FloatT>& laser_scan, const FloatT yaw)
+void RVizManager<FloatT>::publish_laser_scan(
+    const std::vector<FloatT>& laser_scan,
+    const LidarConfig<FloatT>& lidar_cfg) const
 {
     LaserScanMsg msg;
-    msg.range_max = 120;
+    msg.range_max = lidar_cfg.max_range();
     msg.range_min = 0;
-    msg.angle_min = wrap_to_pi_range(yaw-M_PI_2);
-    msg.angle_max = wrap_to_pi_range(yaw + M_PI_2);
-    msg.angle_increment =  M_PI / 180;
-    // msg.angle_increme
+    msg.angle_min = lidar_cfg.min_angle();
+    msg.angle_max = lidar_cfg.max_angle();
+    msg.angle_increment = lidar_cfg.step();
     for (auto range : laser_scan)
     {
         msg.ranges.push_back(range);
     }
 
-    msg.header.frame_id = "particle_frame";
+    // don't know why when there is only one value in vector, the value is not showed,
+    // the only way to get the range showed is to send a vector of size 2.
+    // so copy first value
+    if(msg.ranges.size() == 1)
+    {
+        msg.ranges.push_back(msg.ranges[0]);
+    }
+
+    msg.header.frame_id = lidar_cfg.frame_name();
     m_laser_scan_publisher->publish(msg);
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::fill_pose_msg(const Pose& pose, geometry_msgs::msg::Pose& pose_msg)
+void RVizManager<FloatT>::fill_pose_msg(const Pose<FloatT>& pose, geometry_msgs::msg::Pose& pose_msg) const
 {
     // pose_msg.header.frame_id = "map";
     // pose_msg.header.stamp = odometry_value.timestamp;
@@ -142,7 +151,7 @@ void RVizManager<FloatT>::fill_pose_msg(const Pose& pose, geometry_msgs::msg::Po
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::publish_transform(const Pose& pose)
+void RVizManager<FloatT>::publish_transform(const Pose<FloatT>& pose, const std::string& frame_name) const
 {
     TranformMsg t;
 
@@ -150,7 +159,7 @@ void RVizManager<FloatT>::publish_transform(const Pose& pose)
     // corresponding tf variables
     // t.header.stamp = this->get_clock()->now();
     t.header.frame_id = "map";
-    t.child_frame_id = "particle_frame";
+    t.child_frame_id = frame_name;
     // Turtle only exists in 2D, thus we get x and y translation
     // coordinates from the message and set the z coordinate to 0
     t.transform.translation.x = pose.x;
@@ -160,12 +169,12 @@ void RVizManager<FloatT>::publish_transform(const Pose& pose)
     // For the same reason, turtle can only rotate around one axis
     // and this why we set rotation in x and y to 0 and obtain
     // rotation in z axis from the message
-    // tf2::Quaternion q;
-    // q.setRPY(0, 0, msg->theta);
-    // t.transform.rotation.x = 0;
-    // t.transform.rotation.y = 0;
-    // t.transform.rotation.z = 0;
-    // t.transform.rotation.w = 1;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, pose.yaw);
+    t.transform.rotation.x = q.getX();
+    t.transform.rotation.y = q.getY();
+    t.transform.rotation.z = q.getZ();
+    t.transform.rotation.w = q.getW();
 
     // Send the transformation
     m_transform_broadcaster->sendTransform(t);

@@ -29,11 +29,7 @@ class ParticleFilter
     FloatT SIGMA_YAW_NOISE = 0.01;
 
 public:
-    using GridPose = typename OccupancyGrid<FloatT>::GridPose;
-    using Point = typename OccupancyGrid<FloatT>::Point;
-    using Pose = typename OccupancyGrid<FloatT>::Pose;
-
-    struct Particle : public GridPose
+    struct Particle : public IPose<FloatT>
     {
         FloatT weight;
     };
@@ -41,26 +37,29 @@ public:
     ParticleFilter(const size_t num_particles, typename OccupancyGrid<FloatT>::ConstPtr occ_grid);
 
     Particle update(
-        const LidarOdometry<FloatT>& previous_odometry,
-        const LidarOdometry<FloatT>& current_odometry,
-        const std::vector<FloatT>& scan_angles);
+        const RobotReading<FloatT>& previous_odometry,
+        const RobotReading<FloatT>& current_odometry);
 
     const std::vector<Particle>& get_particles() const
     {
         return m_particles;
     }
 
+    void set_resampling_thr(const FloatT resampling_thr)
+    {
+        m_resampling_thr = resampling_thr;
+    }
+
 private:
     void init_particles();
-    GridPose sample_motion_model(
-        const GridPose& previous_map_pose,
-        const LidarOdometry<FloatT>& previous_odometry,
-        const LidarOdometry<FloatT>& current_odometry);
+    IPose<FloatT> sample_motion_model(
+        const IPose<FloatT>& previous_map_pose,
+        const RobotReading<FloatT>& previous_reading,
+        const RobotReading<FloatT>& current_reading);
 
     FloatT sample_measurement_model(
         const Particle& pose,
-        const LidarOdometry<FloatT>& current_odometry,
-        const std::vector<FloatT>& scan_angles);
+        const RobotReading<FloatT>& current_reading);
 
     FloatT sample_hit_model(const Particle& particle, const FloatT range);
     std::vector<Particle> low_variance_sampler(const std::vector<Particle>& particle_set);
@@ -86,6 +85,7 @@ private:
     FloatT m_lidar_offset{0.25};
     FloatT m_obstacle_th{0.6};
     FloatT m_max_range{114};
+    FloatT m_resampling_thr{1.0};
 };
 
 }  // namespace slam
