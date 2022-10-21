@@ -64,7 +64,7 @@ private:
 
     std::mt19937 m_generator;
 
-    // algorithm paramters
+    // algorithm parameters
     FloatT m_num_particles_inv;
     FloatT m_alpha1{0.025};
     FloatT m_alpha2{0.025};

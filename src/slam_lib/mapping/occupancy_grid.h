@@ -131,7 +131,6 @@ private:
     using Vector = Eigen::Matrix<FloatT, -1, 1>;
 
     void update_cell_probability(const IPoint& point, CellState state);
-    void get_free_cells(const IPoint& detection, std::vector<IPoint>& free_cells);
     bool is_in_grid_bounds(const IPoint& point);
 
     FloatT m_resolution;
@@ -139,9 +138,6 @@ private:
     Map m_map;
     IPoint m_grid_center;
     Transform m_transform;
-    const FloatT m_p_free{0.6};
-    const FloatT m_p_occ{0.4};
-    const FloatT m_p_prior{0.5};
 };
 
 }  // namespace slam
