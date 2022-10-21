@@ -183,7 +183,7 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
 
         IPoint laser_end = m_occ_grid->project_ray(scan_pose, range);
         CellState cell_state = m_occ_grid->check_cell_state(laser_end);
-        score += cell_state == CellState::OCCUPIED ? m_num_particles_inv : 0;
+        score += (cell_state == CellState::OCCUPIED ? 1 : -0) * m_num_particles_inv;
     }
 
     if (score < 0)

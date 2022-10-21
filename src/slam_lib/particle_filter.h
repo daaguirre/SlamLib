@@ -71,7 +71,7 @@ private:
     FloatT m_alpha3{0.4};
     FloatT m_alpha4{0.4};
     FloatT m_sigma_hit{0.4};
-    FloatT m_resampling_thr{1.0};
+    FloatT m_resampling_thr{0.95};
 };
 
 }  // namespace slam
