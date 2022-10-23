@@ -25,7 +25,7 @@ class ParticleFilter
 public:
     struct Particle : public IPose<FloatT>
     {
-        FloatT weight;
+        FloatT weight{0};
     };
 
     ParticleFilter(const size_t num_particles, typename OccupancyGrid<FloatT>::ConstPtr occ_grid);
@@ -70,8 +70,8 @@ private:
     FloatT m_alpha2{0.025};
     FloatT m_alpha3{0.4};
     FloatT m_alpha4{0.4};
-    FloatT m_sigma_hit{0.4};
-    FloatT m_resampling_thr{0.95};
+    FloatT m_sigma_hit{0.8};
+    FloatT m_resampling_thr{1.0};
 };
 
 }  // namespace slam

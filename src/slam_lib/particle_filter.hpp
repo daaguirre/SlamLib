@@ -1,7 +1,7 @@
 
 #include <iostream>
 #include <random>
-
+#include <omp.h>
 #include "odometry/odometry_models.h"
 #include "particle_filter.h"
 #include "slam_lib/utils/math_helpers.h"
@@ -15,6 +15,10 @@ ParticleFilter<FloatT>::ParticleFilter(
     typename OccupancyGrid<FloatT>::ConstPtr occ_grid)
     : m_num_particles(num_particles), m_occ_grid(occ_grid), m_generator(std::random_device()())
 {
+    int num_threads = omp_get_max_threads();
+    omp_set_num_threads(num_threads);
+    std::cout << "OpenMP initialized with " << num_threads << " threads.\n";
+
     init_particles();
 }
 
@@ -53,8 +57,8 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     const RobotReading<FloatT>& current_reading)
 {
     FloatT total_weight = 0;
-    std::vector<Particle> particles_tmp;
-    particles_tmp.reserve(m_num_particles);
+
+    #pragma omp parallel for reduction(+: total_weight)
     for (size_t i = 0; i < m_num_particles; i++)
     {
         // calculate new state
@@ -73,41 +77,38 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
         }
 
         current_particle.weight = weight;
-        particles_tmp.push_back(current_particle);
+        m_particles[i] = current_particle;
         total_weight += weight;
     }
 
     // normalize weights
     std::for_each(
-        particles_tmp.begin(),
-        particles_tmp.end(),
-        [=](Particle& particle) { particle.weight /= total_weight; });
+        m_particles.begin(),
+        m_particles.end(),
+        [=](Particle& p) { p.weight /= total_weight; });
 
-    auto best_particle = std::max_element(
-        particles_tmp.begin(),
-        particles_tmp.end(),
-        [](const Particle& a, const Particle& b) { return a.weight < b.weight; });
-
-    Particle final_particle = *best_particle;
-
+    FloatT x=0, y=0, yaw=0;
     FloatT sum1 = 0, sum2 = 0;
-    for (const auto& p : particles_tmp)
+    for(const auto& p : m_particles)
     {
+        x += p.x * p.weight;
+        y += p.y * p.weight;
+        yaw += p.yaw * p.weight;
         sum1 += p.weight;
         sum2 += p.weight * p.weight;
     }
+    Particle best_particle;
+    best_particle.x = std::round(x);
+    best_particle.y = std::round(y);
+    best_particle.yaw = yaw;
 
     FloatT eff_particles = ((sum1 * sum1) / sum2) / m_num_particles;
     if (eff_particles < m_resampling_thr)
     {
-        m_particles = low_variance_sampler(particles_tmp);
-    }
-    else
-    {
-        m_particles = particles_tmp;
+        m_particles = low_variance_sampler(m_particles);
     }
 
-    return final_particle;
+    return best_particle;
 }
 
 template <typename FloatT>
@@ -165,6 +166,8 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
 
     const auto& scan_angles = current_reading.lidar_cfg_ptr->scan_angles();
     FloatT score = 0;
+
+    #pragma omp parallel for reduction(+: score)
     for (int i = 0; i < scan_angles.size(); ++i)
     {
         const FloatT range = current_reading.ranges[i];
@@ -178,12 +181,12 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
         Particle scan_pose(lidar_pose);
         scan_pose.yaw = wrap_to_pi_range(scan_pose.yaw - scan_angle);
 
-        // FloatT hit_prob = sample_hit_model(scan_pose, range);
-        // score = hit_prob > 0.9? 5 : -2;
+        FloatT hit_prob = sample_hit_model(scan_pose, range);
+        score += hit_prob;
 
-        IPoint laser_end = m_occ_grid->project_ray(scan_pose, range);
-        CellState cell_state = m_occ_grid->check_cell_state(laser_end);
-        score += (cell_state == CellState::OCCUPIED ? 1 : -0) * m_num_particles_inv;
+        // IPoint laser_end = m_occ_grid->project_ray(scan_pose, range);
+        // CellState cell_state = m_occ_grid->check_cell_state(laser_end);
+        // score += (cell_state == CellState::OCCUPIED ? 1 : -0) * m_num_particles_inv;
     }
 
     if (score < 0)
@@ -204,8 +207,8 @@ FloatT ParticleFilter<FloatT>::sample_hit_model(const Particle& particle, const 
     }
 
     FloatT hit_prob = normpdf(range, true_range, m_sigma_hit);
-    FloatT max_hit_prob = normpdf(true_range, true_range, m_sigma_hit);
-    hit_prob /= max_hit_prob;
+    // FloatT max_hit_prob = normpdf(true_range, true_range, m_sigma_hit);
+    // hit_prob /= max_hit_prob;
     return hit_prob;
 }
 

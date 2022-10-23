@@ -30,8 +30,8 @@ struct PointXY
         T data[2];
         struct
         {
-            T x;
-            T y;
+            T x{0};
+            T y {0};
         };
     };
 
@@ -52,7 +52,7 @@ struct Pose2D : PointXY<T>
     Pose2D() {}
     Pose2D(const T x, const T y, const YawT yaw) : PointXY<T>(x, y), yaw(yaw) {}
 
-    YawT yaw;
+    YawT yaw{0};
 };
 
 template <

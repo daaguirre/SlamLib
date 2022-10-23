@@ -28,6 +28,7 @@ generate_cpp_sources(FILES ${${lib_name}_sources})
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 find_package(PCL 1.12.1 REQUIRED COMPONENTS visualization)
+find_package(OpenMP)
 
 # ROS Libraries
 find_package(ament_cmake REQUIRED)
@@ -56,4 +57,5 @@ target_link_libraries(${lib_name}
     Eigen3::Eigen
     ${OpenCV_LIBS}
     ${PCL_LIBRARIES}
+    OpenMP::OpenMP_CXX
 )
