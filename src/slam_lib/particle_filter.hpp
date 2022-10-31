@@ -221,6 +221,7 @@ std::vector<typename ParticleFilter<FloatT>::Particle> ParticleFilter<FloatT>::l
     float r = (rand() / static_cast<FloatT>(RAND_MAX)) * m_num_particles_inv;
     float c = particle_set[0].weight;
     size_t i = 0;
+
     for (size_t m = 0; m < m_num_particles; ++m)
     {
         float u = r + static_cast<FloatT>(m) * m_num_particles_inv;

@@ -103,12 +103,36 @@ public:
 
     /**
      * @brief obtains the distance from the input pose to first obstacle found.
+     * The algorithm implemented here is based on brasenham's algorithm.
+     * First a line equation is calculated
+     * then the deltas are selected based on the octet where the yaw angle belongs
+     * Deltas are applied and the closest position to the line is selected.
+     * Finally range is calculated by using Pythagoras
      *
      * @param pose input pose
+     * @param occ_thr occupancy threshold, any value smaller than this will consider the cell as
+     * occupied
+     * @param free_thr free threshold, any value bigger than this will consider the cell as free
      * @return FloatT the range value to the first obstacle. If not obstacle is found then
      * INVALID_RANGE is returned
      */
     FloatT ray_tracing(
+        const IPose<FloatT>& pose,
+        const FloatT occ_thr = DEFAULT_OCC_THR,
+        const FloatT free_thr = DEFAULT_FREE_THR) const;
+
+    /**
+     * @brief simpler ray tracing algorithm which calculates the next position in world frame
+     * by walking along the yaw angle with a step equal to the map resolution.
+     *
+     * @param pose input pose
+     * @param occ_thr occupancy threshold, any value smaller than this will consider the cell as
+     * occupied
+     * @param free_thr free threshold, any value bigger than this will consider the cell as free
+     * @return FloatT the range value to the first obstacle. If not obstacle is found then
+     * INVALID_RANGE is returned.
+     */
+    FloatT ray_tracing_in_world_frame(
         const IPose<FloatT>& pose,
         const FloatT occ_thr = DEFAULT_OCC_THR,
         const FloatT free_thr = DEFAULT_FREE_THR) const;

@@ -49,14 +49,13 @@ public:
     RVizManager(rclcpp::Node::SharedPtr node_ptr);
 
     void publish_map(const OccupancyGrid<FloatT>& occ_grid) const;
-    void publish_pose(const Pose<FloatT>& pose) const ;
+    void publish_pose(const Pose<FloatT>& pose) const;
     void publish_pose_array(const std::vector<Pose<FloatT>>& pose_vector) const;
-    void publish_laser_scan(
-        const std::vector<FloatT>& ranges,
-        const LidarConfig<FloatT>& lidar_cfg) const;
+    void publish_laser_scan(const std::vector<FloatT>& ranges, const LidarConfig<FloatT>& lidar_cfg)
+        const;
     void publish_transform(const Pose<FloatT>& pose, const std::string& frame_name) const;
 
-    void wait_msgs() const;
+    void wait_msgs(FloatT delay = 0.2) const;
 
 private:
     void fill_pose_msg(const Pose<FloatT>& pose, geometry_msgs::msg::Pose& pose_msg) const;

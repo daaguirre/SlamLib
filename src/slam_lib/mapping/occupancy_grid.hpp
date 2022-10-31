@@ -100,7 +100,7 @@ CellState OccupancyGrid<FloatT>::check_cell_state(
 }
 
 template <typename FloatT>
-FloatT OccupancyGrid<FloatT>::ray_tracing(
+FloatT OccupancyGrid<FloatT>::ray_tracing_in_world_frame(
     const IPose<FloatT> &pose,
     const FloatT occ_thr,
     const FloatT free_thr) const
@@ -119,6 +119,53 @@ FloatT OccupancyGrid<FloatT>::ray_tracing(
             range = INVALID_RANGE;
         }
     }
+    return range;
+}
+
+template <typename FloatT>
+FloatT OccupancyGrid<FloatT>::ray_tracing(
+    const IPose<FloatT> &pose,
+    const FloatT occ_thr,
+    const FloatT free_thr) const
+{
+    FloatT octet_thr = std::sin(M_PI_4);
+    IPoint current_point(pose.x, pose.y);
+    FloatT cos_yaw = std::cos(pose.yaw);
+    FloatT cos_yaw_sign = static_cast<int>(std::copysign(1.0, cos_yaw));
+    FloatT sin_yaw = std::sin(pose.yaw);
+    FloatT sin_yaw_sign = static_cast<int>(std::copysign(1.0, sin_yaw));
+    int dx1 = std::abs(cos_yaw) > octet_thr? cos_yaw_sign : 0;
+    int dy1 = dx1 == 0? sin_yaw_sign : 0;
+    int dx2 = cos_yaw_sign;
+    int dy2 = sin_yaw_sign;
+    CellState current_state = check_cell_state(current_point, occ_thr, free_thr);
+    FloatT range = INVALID_RANGE;
+    FloatT last_distance = 0;
+    while (current_state == CellState::FREE)
+    {
+        IPoint point1(current_point.x + dx1, current_point.y + dy1);
+        IPoint point2(current_point.x + dx2, current_point.y + dy2);
+        FloatT d1 = std::abs(cos_yaw * (pose.y - point1.y) - sin_yaw*(pose.x-point1.x));
+        FloatT d2 = std::abs(cos_yaw * (pose.y - point2.y) - sin_yaw*(pose.x-point2.x));
+        if (d1 < d2)
+        {
+            current_point = point1;
+            last_distance = d1;
+        }
+        else
+        {
+            current_point = point2;
+            last_distance = d2;
+        }
+        
+        current_state = check_cell_state(current_point, occ_thr, free_thr);
+    }
+    if(current_state == CellState::OCCUPIED)
+    {
+        FloatT final_distance = std::sqrt(sqr(current_point.x-pose.x) + sqr(current_point.y-pose.y)); 
+        range = std::sqrt(sqr(final_distance) - sqr(last_distance)) * m_resolution; 
+    }
+
     return range;
 }
 

@@ -104,29 +104,49 @@ TEST_F(OccupancyGridTest, test_ray_tracing)
     slam::MapReader<FloatT> map_reader;
     slam::OccupancyGrid<FloatT>::ConstPtr wean_map = map_reader.read_map(wean_map_path);
 
-    FloatT yaw = M_PI_2;
-    IPose pose1(400, 400, yaw);
+    FloatT step = M_PI_2 / 3;
+    std::vector<FloatT> expected_values{
+        7.5999999,
+        0.80621779,
+        0.94282037,
+        13.2,
+        3.00166607,
+        1.61243558,
+        1.30000007,
+        1.38923049,
+        2.1954484,
+        11.1000004,
+        2.3320508,
+        1.1660254
+    };
+    size_t num_scans = expected_values.size();
+    std::vector<FloatT> ranges;
 
-    FloatT range = wean_map->ray_tracing(pose1, 0.15, 0.15);
-    FloatT expected_range{13.2};
-    EXPECT_NEAR(expected_range, range, PRECISION<FloatT>);
+    for (size_t i = 0; i < num_scans; ++i)
+    {
+        FloatT yaw = slam::wrap_to_pi_range(i * step);
+        IPose pose1(400, 400, yaw);
+        FloatT range = wean_map->ray_tracing(pose1, 0.15, 0.15);
+        ranges.push_back(range);
+        EXPECT_NEAR(expected_values[i], range, PRECISION<FloatT>);
+    }
+
+    // ranges are ordered in wrt map frame, reorder ranges to be in world frame from 0-2pi
+    std::reverse(ranges.begin() + 1, ranges.end());
 
     const std::string name = "lidar";
-    const size_t num_scans = 1;
-    const FloatT min_angle = 0;
-    const FloatT scan_range = 0;
-
     auto lidar_cfg = slam::LidarConfigBuilder<FloatT>("lidar")
-                         .set_position_offset(0.25)
-                         .set_scan_range(1, 0, 0)
+                         .set_position_offset(0)
+                         .set_scan_range(num_scans, 0, 2 * M_PI)
                          .build();
+    IPose pose1(400, 400, 0);
     auto lidar_pose_w = wean_map->to_world_frame(pose1);
 
     slam::RVizManager<FloatT> rviz(m_node_ptr);
     rviz.publish_map(*wean_map);
     rviz.publish_pose(wean_map->to_world_frame(pose1));
     rviz.publish_transform(lidar_pose_w, lidar_cfg.frame_name());
-    rviz.publish_laser_scan({expected_range}, lidar_cfg);
+    rviz.publish_laser_scan(ranges, lidar_cfg);
     rviz.wait_msgs();
 }
 

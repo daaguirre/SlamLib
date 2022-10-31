@@ -24,9 +24,10 @@ RVizManager<FloatT>::RVizManager(rclcpp::Node::SharedPtr node_ptr) : m_node_ptr(
 }
 
 template <typename FloatT>
-void RVizManager<FloatT>::wait_msgs() const
+void RVizManager<FloatT>::wait_msgs(FloatT delay) const
 {
-    std::this_thread::sleep_for(0.2s);
+    auto d = std::chrono::milliseconds(static_cast<int>(delay*1000));
+    std::this_thread::sleep_for(d);
 }
 
 template <typename FloatT>
@@ -113,7 +114,7 @@ void RVizManager<FloatT>::publish_laser_scan(
     msg.range_max = lidar_cfg.max_range();
     msg.range_min = 0;
     msg.angle_min = lidar_cfg.min_angle();
-    msg.angle_max = lidar_cfg.max_angle();
+    msg.angle_max = lidar_cfg.max_angle() + lidar_cfg.step();
     msg.angle_increment = lidar_cfg.step();
     for (auto range : laser_scan)
     {
