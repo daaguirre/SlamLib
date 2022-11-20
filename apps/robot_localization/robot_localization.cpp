@@ -2,7 +2,7 @@
 
 #include <geometry_msgs/msg/transform.h>
 #include <nav_msgs/msg/occupancy_grid.h>
-#include <slam_lib/particle_filter.h>
+#include <slam_lib/localization/particle_filter.h>
 #include <slam_lib/ros/rviz_manager.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>

@@ -13,31 +13,24 @@
 
 #include <random>
 
-#include "mapping/occupancy_grid.h"
-#include "odometry/odometry_models.h"
+#include "particle_filter_base.h"
+#include "slam_lib/mapping/occupancy_grid.h"
+#include "slam_lib/odometry/odometry_models.h"
 
 namespace slam
 {
 
 template <typename FloatT>
-class ParticleFilter
+class ParticleFilter : public ParticleFilterBase<FloatT>
 {
 public:
-    struct Particle : public IPose<FloatT>
-    {
-        FloatT weight{0};
-    };
+    using Particle = typename ParticleFilterBase<FloatT>::Particle;
 
     ParticleFilter(const size_t num_particles, typename OccupancyGrid<FloatT>::ConstPtr occ_grid);
 
-    Particle update(
+    virtual Particle update(
         const RobotReading<FloatT>& previous_odometry,
-        const RobotReading<FloatT>& current_odometry);
-
-    const std::vector<Particle>& get_particles() const
-    {
-        return m_particles;
-    }
+        const RobotReading<FloatT>& current_odometry) override;
 
     void set_resampling_thr(const FloatT resampling_thr)
     {
@@ -45,7 +38,8 @@ public:
     }
 
 private:
-    void init_particles();
+    virtual void init_particles() override;
+
     IPose<FloatT> sample_motion_model(
         const IPose<FloatT>& previous_map_pose,
         const RobotReading<FloatT>& previous_reading,
@@ -57,10 +51,6 @@ private:
 
     FloatT sample_hit_model(const Particle& particle, const FloatT range);
     std::vector<Particle> low_variance_sampler(const std::vector<Particle>& particle_set);
-
-    const size_t m_num_particles;
-    typename OccupancyGrid<FloatT>::ConstPtr m_occ_grid;
-    std::vector<Particle> m_particles;
 
     std::mt19937 m_generator;
 

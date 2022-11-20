@@ -3,7 +3,7 @@
 
 #include <slam_lib/io/map_reader.h>
 #include <slam_lib/mapping/occupancy_grid.h>
-#include <slam_lib/particle_filter.h>
+#include <slam_lib/localization/particle_filter.h>
 #include <slam_lib/ros/rviz_manager.h>
 #include <slam_lib/utils/math_helpers.h>
 

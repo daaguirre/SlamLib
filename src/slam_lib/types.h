@@ -22,16 +22,15 @@ struct PointXY
     using Vector = Eigen::Map<Eigen::Matrix<T, 2, 1>>;
     using ConstVector = Eigen::Map<const Eigen::Matrix<T, 2, 1>>;
 
-    PointXY() {}
-    PointXY(const T x, const T y) : x(x), y(y) {}
+    PointXY(const T x=0, const T y=0) : x(x), y(y) {}
 
     union
     {
         T data[2];
         struct
         {
-            T x{0};
-            T y {0};
+            T x;
+            T y;
         };
     };
 

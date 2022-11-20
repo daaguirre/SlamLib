@@ -20,6 +20,8 @@ SET(${app_name}_sources
     slam_lib/io/odometry_reader_test.cpp
     slam_lib/mapping/occupancy_grid_test.h
     slam_lib/mapping/occupancy_grid_test.cpp
+    slam_lib/localization/particle_filter_gpu_test.h
+    slam_lib/localization/particle_filter_gpu_test.cpp
     slam_lib/particle_filter_test.h
     slam_lib/particle_filter_test.cpp
 )
@@ -36,6 +38,9 @@ target_link_libraries(${app_name}
   GTest::gtest_main
   SlamLib
 )
+
+set_target_properties(${app_name} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
 
 add_test(project_name_gtest ${app_name})
 

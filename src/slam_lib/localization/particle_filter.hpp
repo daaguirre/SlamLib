@@ -1,9 +1,11 @@
 
+#include <omp.h>
+
 #include <iostream>
 #include <random>
-#include <omp.h>
-#include "odometry/odometry_models.h"
+
 #include "particle_filter.h"
+#include "slam_lib/odometry/odometry_models.h"
 #include "slam_lib/utils/math_helpers.h"
 
 namespace slam
@@ -13,7 +15,7 @@ template <typename FloatT>
 ParticleFilter<FloatT>::ParticleFilter(
     const size_t num_particles,
     typename OccupancyGrid<FloatT>::ConstPtr occ_grid)
-    : m_num_particles(num_particles), m_occ_grid(occ_grid), m_generator(std::random_device()())
+    : ParticleFilterBase<FloatT>(num_particles, occ_grid), m_generator(std::random_device()())
 {
     int num_threads = omp_get_max_threads();
     omp_set_num_threads(num_threads);
@@ -27,17 +29,17 @@ void ParticleFilter<FloatT>::init_particles()
 {
     std::random_device rd;
     std::mt19937 gen(rd());
-    m_num_particles_inv = 1.0 / static_cast<FloatT>(m_num_particles);
-    m_particles.resize(m_num_particles);
+    m_num_particles_inv = 1.0 / static_cast<FloatT>(this->m_num_particles);
+    this->m_particles.resize(this->m_num_particles);
 
     size_t count = 0;
-    while (count < m_num_particles)
+    while (count < this->m_num_particles)
     {
-        Particle& particle = m_particles[count];
+        Particle& particle = this->m_particles[count];
         std::uniform_real_distribution<FloatT> dis(0, 1);  // uniform distribution between 0 and 1
-        particle.x = int(dis(gen) * m_occ_grid->width());
-        particle.y = int(dis(gen) * m_occ_grid->height());
-        CellState cell_state = m_occ_grid->check_cell_state(particle);
+        particle.x = int(dis(gen) * this->m_occ_grid->width());
+        particle.y = int(dis(gen) * this->m_occ_grid->height());
+        CellState cell_state = this->m_occ_grid->check_cell_state(particle);
         // make sure particles are initialized in free cells
         if (cell_state != CellState::FREE)
         {
@@ -58,15 +60,15 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
 {
     FloatT total_weight = 0;
 
-    #pragma omp parallel for reduction(+: total_weight)
-    for (size_t i = 0; i < m_num_particles; i++)
+#pragma omp parallel for reduction(+ : total_weight)
+    for (size_t i = 0; i < this->m_num_particles; i++)
     {
         // calculate new state
         Particle current_particle;
         *dynamic_cast<IPose<FloatT>*>(&current_particle) =
-            sample_motion_model(m_particles[i], previous_reading, current_reading);
-        CellState cell_state = m_occ_grid->check_cell_state(current_particle);
-        FloatT weight = m_particles[i].weight;
+            sample_motion_model(this->m_particles[i], previous_reading, current_reading);
+        CellState cell_state = this->m_occ_grid->check_cell_state(current_particle);
+        FloatT weight = this->m_particles[i].weight;
         if (cell_state != CellState::FREE)
         {
             weight = 0;
@@ -77,19 +79,19 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
         }
 
         current_particle.weight = weight;
-        m_particles[i] = current_particle;
+        this->m_particles[i] = current_particle;
         total_weight += weight;
     }
 
     // normalize weights
     std::for_each(
-        m_particles.begin(),
-        m_particles.end(),
+        this->m_particles.begin(),
+        this->m_particles.end(),
         [=](Particle& p) { p.weight /= total_weight; });
 
-    FloatT x=0, y=0, yaw=0;
+    FloatT x = 0, y = 0, yaw = 0;
     FloatT sum1 = 0, sum2 = 0;
-    for(const auto& p : m_particles)
+    for (const auto& p : this->m_particles)
     {
         x += p.x * p.weight;
         y += p.y * p.weight;
@@ -102,10 +104,10 @@ typename ParticleFilter<FloatT>::Particle ParticleFilter<FloatT>::update(
     best_particle.y = std::round(y);
     best_particle.yaw = yaw;
 
-    FloatT eff_particles = ((sum1 * sum1) / sum2) / m_num_particles;
+    FloatT eff_particles = ((sum1 * sum1) / sum2) / this->m_num_particles;
     if (eff_particles < m_resampling_thr)
     {
-        m_particles = low_variance_sampler(m_particles);
+        this->m_particles = low_variance_sampler(this->m_particles);
     }
 
     return best_particle;
@@ -138,7 +140,7 @@ IPose<FloatT> ParticleFilter<FloatT>::sample_motion_model(
     FloatT delta_rot1_hat = delta_rot1 - rot1_noise(m_generator);
     FloatT delta_rot2_hat = delta_rot2 - rot2_noise(m_generator);
 
-    Pose<FloatT> previous_pose = m_occ_grid->to_world_frame(previous_map_pose);
+    Pose<FloatT> previous_pose = this->m_occ_grid->to_world_frame(previous_map_pose);
     Pose<FloatT> new_pose;
     FloatT dx = (delta_t_hat * cos(previous_pose.yaw + delta_rot1_hat));
     FloatT dy = (delta_t_hat * sin(previous_pose.yaw + delta_rot1_hat));
@@ -146,7 +148,7 @@ IPose<FloatT> ParticleFilter<FloatT>::sample_motion_model(
     new_pose.y = previous_pose.y + dy;
     new_pose.yaw = previous_pose.yaw + delta_rot1_hat + delta_rot2_hat;
 
-    IPose<FloatT> new_map_pose = m_occ_grid->to_map_frame(new_pose);
+    IPose<FloatT> new_map_pose = this->m_occ_grid->to_map_frame(new_pose);
     return new_map_pose;
 }
 
@@ -157,9 +159,9 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
 {
     Particle lidar_pose;
     *dynamic_cast<IPoint*>(&lidar_pose) =
-        m_occ_grid->project_ray(robot_pose, current_reading.lidar_cfg_ptr->pos_offset());
+        this->m_occ_grid->project_ray(robot_pose, current_reading.lidar_cfg_ptr->pos_offset());
     lidar_pose.yaw = robot_pose.yaw;
-    if (m_occ_grid->check_cell_state(lidar_pose) != CellState::FREE)
+    if (this->m_occ_grid->check_cell_state(lidar_pose) != CellState::FREE)
     {
         return 0;
     }
@@ -167,7 +169,7 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
     const auto& scan_angles = current_reading.lidar_cfg_ptr->scan_angles();
     FloatT score = 0;
 
-    #pragma omp parallel for reduction(+: score)
+#pragma omp parallel for reduction(+ : score)
     for (int i = 0; i < scan_angles.size(); ++i)
     {
         const FloatT range = current_reading.ranges[i];
@@ -200,7 +202,7 @@ FloatT ParticleFilter<FloatT>::sample_measurement_model(
 template <typename FloatT>
 FloatT ParticleFilter<FloatT>::sample_hit_model(const Particle& particle, const FloatT range)
 {
-    FloatT true_range = m_occ_grid->ray_tracing(particle, 0.15, 0.15);
+    FloatT true_range = this->m_occ_grid->ray_tracing(particle, 0.15, 0.15);
     if (std::isnan(true_range))
     {
         return 0;
@@ -217,12 +219,12 @@ std::vector<typename ParticleFilter<FloatT>::Particle> ParticleFilter<FloatT>::l
     const std::vector<typename ParticleFilter<FloatT>::Particle>& particle_set)
 {
     std::vector<Particle> particles_tmp;
-    particles_tmp.reserve(m_num_particles);
+    particles_tmp.reserve(this->m_num_particles);
     float r = (rand() / static_cast<FloatT>(RAND_MAX)) * m_num_particles_inv;
     float c = particle_set[0].weight;
     size_t i = 0;
 
-    for (size_t m = 0; m < m_num_particles; ++m)
+    for (size_t m = 0; m < this->m_num_particles; ++m)
     {
         float u = r + static_cast<FloatT>(m) * m_num_particles_inv;
         while (u > c)

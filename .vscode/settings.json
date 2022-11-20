@@ -1,0 +1,28 @@
+{
+    "workbench.colorTheme": "Default Dark+",
+    "autoDocstring.docstringFormat": "sphinx",
+    "python.envFile": "${workspaceFolder}/.env",
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceFolder}"
+    },
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.formatting.provider": "black",
+    "workbench.colorCustomizations": {
+        "titleBar.activeBackground": "#0ea700",
+        // "titleBar.activeBackground": "#a75600"
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/diego/ros2_foxy/ros2-linux/lib/python3.8/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/diego/ros2_foxy/ros2-linux/lib/python3.8/site-packages"
+    ],
+    "testMate.cpp.debug.configTemplate": "name:cuda_c++",
+    "cmake.configureSettings": {
+        "BUILD_TESTS": "ON"
+    },
+    "ros.distro": "foxy",
+}
